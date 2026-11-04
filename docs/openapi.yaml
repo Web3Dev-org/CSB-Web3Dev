@@ -1,0 +1,616 @@
+
+openapi: 3.0.3
+
+info:
+  title: Rezervări Sport USV API
+  version: 1.0.0
+  description: |
+    Contractul RESTful (Design-First) pentru platforma de rezervări baze sportive USV.
+    Acest document definește interfața dintre client (ex. aplicație web/mobilă) și backend.
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Server de dezvoltare local
+  - url: https://api.sport.usv.ro/v1
+    description: Server de producție
+
+tags:
+  - name: Auth
+    description: Autentificare și gestionare sesiuni
+  - name: Users
+    description: Operațiuni utilizatori și profil
+  - name: Facilities
+    description: Baze sportive și disponibilitate
+  - name: Bookings
+    description: Gestionarea rezervărilor
+  - name: Payments
+    description: Procesarea plăților
+  - name: App
+    description: Date globale (Echipamente, Setări, Termeni)
+
+paths:
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Autentificare utilizator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Autentificare reușită
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Înregistrare utilizator nou
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Utilizator creat cu succes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Datele profilului curent
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profil returnat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /facilities:
+    get:
+      tags:
+        - Facilities
+      summary: Lista facilităților sportive active
+      responses:
+        '200':
+          description: O listă de facilități
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Facility'
+
+  /facilities/{id}/availability:
+    get:
+      tags:
+        - Facilities
+      summary: Obține sloturile disponibile/ocupate pentru o zi
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: date
+          in: query
+          required: true
+          description: Data în format YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: O listă de sloturi orare
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SlotAvailability'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /app/equipment:
+    get:
+      tags:
+        - App
+      summary: Lista echipamentelor extra active
+      responses:
+        '200':
+          description: O listă de echipamente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Equipment'
+
+  /app/terms/current:
+    get:
+      tags:
+        - App
+      summary: Obține termenii și condițiile curente
+      responses:
+        '200':
+          description: Termenii curenți (necesari la rezervare)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Terms'
+
+  /bookings:
+    get:
+      tags:
+        - Bookings
+      summary: Istoricul rezervărilor utilizatorului curent
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: O listă paginată cu rezervările utilizatorului
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Bookings
+      summary: Creează o nouă rezervare
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequest'
+      responses:
+        '201':
+          description: Rezervare creată cu succes (status 'in_asteptare')
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /bookings/{id}/cancel:
+    patch:
+      tags:
+        - Bookings
+      summary: Anulează o rezervare existentă
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Motivul anulării (opțional)
+      responses:
+        '200':
+          description: Rezervare anulată cu succes
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payments/initiate:
+    post:
+      tags:
+        - Payments
+      summary: Inițiază procesul de plată pentru o rezervare
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInitiateRequest'
+      responses:
+        '200':
+          description: Plată inițiată, returnează link-ul sau confirmarea
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInitiateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Date de intrare invalide
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDetail'
+
+    Unauthorized:
+      description: Token JWT lipsă sau invalid
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDetail'
+
+    NotFound:
+      description: Resursa solicitată nu a fost găsită
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDetail'
+
+    Conflict:
+      description: Conflict de stare (ex. slot orar deja ocupat)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDetail'
+
+  schemas:
+
+    # --- AUTH & USERS ---
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - full_name
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        full_name:
+          type: string
+        phone:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT Bearer Token
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+        full_name:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum:
+            - user
+            - admin
+        status_code:
+          type: string
+          description: Ex. 'student', 'cadru', 'extern'
+        status_verified:
+          type: boolean
+        notify_in_app:
+          type: boolean
+        notify_email:
+          type: boolean
+        reminder_minutes:
+          type: integer
+          enum:
+            - 30
+            - 60
+            - 120
+            - 1440
+        created_at:
+          type: string
+          format: date-time
+
+    # --- FACILITIES & EQUIPMENT ---
+
+    Facility:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+        price_per_hour:
+          type: number
+          format: double
+        game_multiplier:
+          type: number
+          format: double
+
+    SlotAvailability:
+      type: object
+      properties:
+        time:
+          type: string
+          format: date-time
+          description: Ora de început a slotului (ex. 2026-11-04T14:00:00Z)
+        status:
+          type: string
+          enum:
+            - disponibil
+            - rezervare
+            - blocat
+            - inchis
+          description: Statusul conform view-ului v_occupied_slots
+
+    Equipment:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        price:
+          type: number
+          format: double
+        stock:
+          type: integer
+          nullable: true
+          description: Null pentru stoc nelimitat
+
+    Terms:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        body:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+
+    # --- BOOKINGS ---
+
+    BookingRequest:
+      type: object
+      required:
+        - facility_id
+        - type
+        - start_at
+        - hours_count
+        - terms_version_id
+      properties:
+        facility_id:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum:
+            - ora
+            - joc
+        start_at:
+          type: string
+          format: date-time
+        hours_count:
+          type: integer
+          minimum: 1
+        terms_version_id:
+          type: integer
+          format: int64
+        equipment:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingEquipmentRequest'
+
+    BookingEquipmentRequest:
+      type: object
+      required:
+        - equipment_id
+        - quantity
+      properties:
+        equipment_id:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          minimum: 1
+
+    BookingSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        facility_name:
+          type: string
+        type:
+          type: string
+          enum:
+            - ora
+            - joc
+        status:
+          type: string
+          enum:
+            - in_asteptare
+            - aprobata
+            - respinsa
+            - anulata
+            - finalizata
+        start_at:
+          type: string
+          format: date-time
+        total_amount:
+          type: number
+          format: double
+        can_cancel:
+          type: boolean
+          description: Calculat din v_my_bookings
+
+    BookingDetail:
+      allOf:
+        - $ref: '#/components/schemas/BookingSummary'
+        - type: object
+          properties:
+            hours_count:
+              type: integer
+            base_amount:
+              type: number
+              format: double
+            equipment_amount:
+              type: number
+              format: double
+            discount_percent:
+              type: number
+              format: double
+            discount_amount:
+              type: number
+              format: double
+            created_at:
+              type: string
+              format: date-time
+            equipment_list:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  quantity:
+                    type: integer
+                  unit_price:
+                    type: number
+                    format: double
+
+    # --- PAYMENTS ---
+
+    PaymentInitiateRequest:
+      type: object
+      required:
+        - booking_id
+        - method
+      properties:
+        booking_id:
+          type: integer
+          format: int64
+        method:
+          type: string
+          enum:
+            - card_online
+            - numerar
+
+    PaymentInitiateResponse:
+      type: object
+      properties:
+        payment_id:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+            - initiata
+            - reusita
+        payment_link:
+          type: string
+          description: Prezent doar dacă metoda a fost card_online
+
+    # --- ERRORS (RFC 7807) ---
+
+    ErrorDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          description: URI care identifică tipul erorii
+        title:
+          type: string
+          description: Un scurt rezumat al erorii
+        status:
+          type: integer
+          description: Codul HTTP
+        detail:
+          type: string
+          description: Explicație specifică pentru această apariție a erorii
+        instance:
+          type: string
+          description: URI-ul instanței unde a apărut eroarea
+
