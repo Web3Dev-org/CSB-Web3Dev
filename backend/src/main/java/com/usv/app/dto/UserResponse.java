@@ -19,21 +19,21 @@ public record UserResponse(
     LocalDateTime lastLoginAt
 ) {
     // Metodă ajutătoare pentru a converti o Entitate în DTO
-    public static UserResponse fromEntity(User user) {
-        return new UserResponse(
-            user.getId(),
-            user.getEmail(),
-            user.getFullName(),
-            user.getPhone(),
-            user.getRole(),
-            user.getStatusCode(),
-            user.isStatusVerified(),
-            user.isNotifyInApp(),
-            user.isNotifyEmail(),
-            user.getReminderMinutes(),
-            user.isActive(),
-            user.getCreatedAt(),
-            user.getLastLoginAt()
-        );
-    }
+   public static UserResponse fromEntity(User user) {
+    return new UserResponse(
+        user.getId(),
+        user.getEmail(),
+        user.getFullName(),
+        user.getPhone(),
+        user.getRole(),
+        user.getStatusCode(),
+        user.getStatusVerified(), 
+        user.getNotifyInApp(),     
+        user.getNotifyEmail(),
+        user.getReminderMinutes(),
+        user.getIsActive(),
+        user.getCreatedAt(),
+        user.getLastLoginAt()
+    );
+}
 }

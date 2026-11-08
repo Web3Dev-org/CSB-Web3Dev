@@ -1,5 +1,6 @@
 package com.usv.app.controller;
 
+import com.usv.app.entity.User;
 import com.usv.app.dto.UserResponse;
 import com.usv.app.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,30 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+   @PutMapping("/{id}")
+    public ResponseEntity<UserResponse> updateUser(@PathVariable Long id, @RequestBody User user) {
+        User existingUser = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+        if (user.getFullName() != null) {
+            existingUser.setFullName(user.getFullName());
+        }
+        if (user.getPhone() != null) {
+            existingUser.setPhone(user.getPhone());
+        }
+        if (user.getNotifyInApp() != null) {
+            existingUser.setNotifyInApp(user.getNotifyInApp());
+        }
+        if (user.getNotifyEmail() != null) {
+            existingUser.setNotifyEmail(user.getNotifyEmail());
+        }
+        if (user.getReminderMinutes() != 0) {
+            existingUser.setReminderMinutes(user.getReminderMinutes());
+        }
+
+        User savedUser = userRepository.save(existingUser);
+        return ResponseEntity.ok(UserResponse.fromEntity(savedUser));
+    }
     // DELETE: http://localhost:8080/api/users/1
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {

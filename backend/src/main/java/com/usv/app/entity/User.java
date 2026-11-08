@@ -41,15 +41,15 @@ public class User {
 
     @Column(name = "status_verified", nullable = false, columnDefinition = "TINYINT(1)")
     @Builder.Default
-    private boolean statusVerified = false;
+    private Boolean statusVerified = false; // <-- Boolean cu B mare
 
     @Column(name = "notify_in_app", nullable = false, columnDefinition = "TINYINT(1)")
     @Builder.Default
-    private boolean notifyInApp = true;
+    private Boolean notifyInApp = true; // <-- Boolean cu B mare
 
     @Column(name = "notify_email", nullable = false, columnDefinition = "TINYINT(1)")
     @Builder.Default
-    private boolean notifyEmail = true;
+    private Boolean notifyEmail = true; // <-- Boolean cu B mare
 
     @Column(name = "reminder_minutes", nullable = false)
     @Builder.Default
@@ -57,7 +57,7 @@ public class User {
 
     @Column(name = "is_active", nullable = false, columnDefinition = "TINYINT(1)")
     @Builder.Default
-    private boolean isActive = true;
+    private Boolean isActive = true; // <-- Boolean cu B mare
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -10,6 +10,9 @@ import { Navbar } from './components/Navbar';
 import { Login } from './pages/Login';
 import { Facilities } from './pages/Facilities';
 import { BookingWizard } from './pages/BookingWizard';
+import { LandingPage } from './pages/LandingPage';
+import { SignUpPage } from './pages/SignUpPage';
+import { ProfilePage } from './pages/ProfilePage';
 
 export const App: React.FC = () => {
   const [autentificat, setAutentificat] = useState<boolean>(false);
@@ -64,12 +67,17 @@ export const App: React.FC = () => {
 
             <Route
               path="/"
-              element={
-                <Navigate
-                  to={autentificat ? "/facilitati" : "/login"}
-                  replace
-                />
-              }
+              element={<LandingPage />}
+            />
+
+            <Route
+              path="/signup"
+              element={<SignUpPage />}
+            />
+
+            <Route
+              path="/cont"
+              element={<ProfilePage />}
             />
 
             <Route
