@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignUpRequest request) {
@@ -26,7 +28,7 @@ public class AuthController {
         User user = User.builder()
                 .fullName(request.fullName())
                 .email(request.email())
-                .passwordHash(request.password())
+                .passwordHash(passwordEncoder.encode(request.password()))
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -39,9 +41,13 @@ public class AuthController {
         User user = userRepository.findByEmail(request.email())
                 .orElse(null);
 
-        // Verificare simplă (vei înlocui cu Spring Security mai târziu)
-        if (user == null || !user.getPasswordHash().equals(request.password())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email sau parolă incorectă!");
+        if (user == null || !passwordEncoder.matches(
+                request.password(),
+                user.getPasswordHash()
+            )) {
+
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Email sau parolă incorectă!");
         }
 
         return ResponseEntity.ok(UserResponse.fromEntity(user));
