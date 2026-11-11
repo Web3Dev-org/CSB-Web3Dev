@@ -1,0 +1,68 @@
+services:
+  db:
+    image: mysql:8.4
+    container_name: mysql_db_dev
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: appdb
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network-dev
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: spring_backend_dev
+    ports:
+      - "8080:8080"
+      - "5005:5005"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/appdb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: apppassword
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    volumes:
+      - ./backend:/app
+      - maven_cache:/root/.m2
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network-dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: react_frontend_dev
+    ports:
+      - "5173:5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - app-network-dev
+
+networks:
+  app-network-dev:
+    driver: bridge
+
+volumes:
+  mysql_data_dev:
+  maven_cache:
