@@ -50,7 +50,7 @@ jobs:
           echo "DB_PASSWORD=ci_pass" >> .env
 
       - name: Start containers
-        run: docker compose up -d --build
+        run: docker compose -f docker-compose.prod.yaml up -d --build
         
       - name: Wait for containers to be healthy
         run: |
@@ -63,4 +63,4 @@ jobs:
           fi
 
       - name: Stop and cleanup
-        run: docker compose down
+        run: docker compose -f docker-compose.prod.yaml down
