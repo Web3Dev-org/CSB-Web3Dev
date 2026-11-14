@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   BrowserRouter,
@@ -7,12 +8,14 @@ import {
 } from 'react-router-dom';
 
 import { Navbar } from './components/Navbar';
+
 import { Login } from './pages/Login';
 import { Facilities } from './pages/Facilities';
 import { BookingWizard } from './pages/BookingWizard';
 import { LandingPage } from './pages/LandingPage';
 import { SignUpPage } from './pages/SignUpPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { MyBookings } from './pages/MyBookings';
 
 export const App: React.FC = () => {
   const [autentificat, setAutentificat] = useState<boolean>(false);
@@ -30,6 +33,7 @@ export const App: React.FC = () => {
         <main className="flex-1">
           <Routes>
 
+            {/* Autentificare */}
             <Route
               path="/login"
               element={
@@ -43,6 +47,19 @@ export const App: React.FC = () => {
               }
             />
 
+            {/* Pagina principală */}
+            <Route
+              path="/"
+              element={<LandingPage />}
+            />
+
+            {/* Înregistrare */}
+            <Route
+              path="/signup"
+              element={<SignUpPage />}
+            />
+
+            {/* Facilități sportive */}
             <Route
               path="/facilitati"
               element={
@@ -54,6 +71,7 @@ export const App: React.FC = () => {
               }
             />
 
+            {/* Rezervarea unei facilități */}
             <Route
               path="/rezervare/:idFacilitate"
               element={
@@ -65,21 +83,31 @@ export const App: React.FC = () => {
               }
             />
 
+            {/* Rezervările mele */}
             <Route
-              path="/"
-              element={<LandingPage />}
+              path="/rezervarile-mele"
+              element={
+                autentificat ? (
+                  <MyBookings />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
             />
 
-            <Route
-              path="/signup"
-              element={<SignUpPage />}
-            />
-
+            {/* Profil utilizator */}
             <Route
               path="/cont"
-              element={<ProfilePage />}
+              element={
+                autentificat ? (
+                  <ProfilePage />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
             />
 
+            {/* Rute inexistente */}
             <Route
               path="*"
               element={
@@ -92,6 +120,7 @@ export const App: React.FC = () => {
 
           </Routes>
         </main>
+
       </div>
     </BrowserRouter>
   );
