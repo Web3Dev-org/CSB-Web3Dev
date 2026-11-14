@@ -22,7 +22,7 @@ export const LandingPage: React.FC = () => {
             Autentificare
           </button>
           <button
-            onClick={() => navigate('/register')}
+            onClick={() => navigate('/signup')}
             className="px-4 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-600 text-white rounded-md transition-colors"
           >
             Înregistrare
@@ -46,7 +46,7 @@ export const LandingPage: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <button
-            onClick={() => navigate('/register')}
+            onClick={() => navigate('/signup')}
             className="w-full sm:w-auto px-8 py-3 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-md shadow-lg shadow-sky-500/25 transition-colors"
           >
             Creează cont nou
