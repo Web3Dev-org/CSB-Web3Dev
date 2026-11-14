@@ -14,6 +14,12 @@ interface FacilitateBooking {
   multiplicatorJoc: number;
 }
 
+interface StoredUser {
+  id: number;
+  email: string;
+  token?: string;
+}
+
 const facilitati: FacilitateBooking[] = [
   {
     id: 1,
@@ -41,12 +47,47 @@ const facilitati: FacilitateBooking[] = [
   },
 ];
 
-export const BookingWizard: React.FC = () => {
+const parseSlotToIso = (slot: string | null): string => {
+  if (!slot) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 2);
+    const yyyy = tomorrow.getFullYear();
+    const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const dd = String(tomorrow.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T12:00:00`;
+  }
 
+  const timeMatch = slot.match(/(\d{1,2}):(\d{2})/);
+  const hour = timeMatch ? timeMatch[1].padStart(2, '0') : '10';
+  const minute = timeMatch ? timeMatch[2].padStart(2, '0') : '00';
+
+  const dateMatch = slot.match(/(\d{1,2})\s+([a-zăâîșț]+)/i);
+  const monthsMap: Record<string, string> = {
+    ian: '01',
+    feb: '02',
+    mar: '03',
+    apr: '04',
+    mai: '05',
+    iun: '06',
+    iul: '07',
+    aug: '08',
+    sep: '09',
+    oct: '10',
+    nov: '11',
+    dec: '12',
+  };
+
+  const day = dateMatch ? dateMatch[1].padStart(2, '0') : '20';
+  const monthPrefix = dateMatch ? dateMatch[2].slice(0, 3).toLowerCase() : 'nov';
+  const month = monthsMap[monthPrefix] ?? '11';
+
+  return `2026-${month}-${day}T${hour}:${minute}:00`;
+};
+
+export const BookingWizard: React.FC = () => {
   const navigate = useNavigate();
 
   const { idFacilitate } = useParams<{ idFacilitate: string }>();
-
   const idSelectat = Number(idFacilitate);
 
   const facilitateSelectata = facilitati.find(
@@ -81,10 +122,82 @@ export const BookingWizard: React.FC = () => {
     }
   };
 
-  if (
-    !Number.isInteger(idSelectat) ||
-    !facilitateSelectata
-  ) {
+ 
+const salveazaRezervareInBackend = async (): Promise<void> => {
+    if (!facilitateSelectata || !datePas1) {
+        alert('Datele rezervării lipsesc.');
+        return;
+    }
+
+    let userId = 1;
+
+    const rawUser = localStorage.getItem('user');
+
+    if (rawUser) {
+        try {
+            const parsed = JSON.parse(rawUser) as StoredUser;
+
+            if (parsed && parsed.id) {
+                userId = parsed.id;
+            }
+        } catch {
+            console.error('Nu s-au putut citi datele utilizatorului.');
+        }
+    }
+
+    const echipamenteSelectate = datePas1.echipamente
+        .filter((e) => e.selectat)
+        .map((e) =>
+            e.nume.replace(/\s*\(\+\d+\s*lei\)/i, '').trim()
+        );
+
+    const payload = {
+        userId: userId,
+        facilityId: facilitateSelectata.id,
+        startAt: parseSlotToIso(datePas1.slotSelectat),
+        hoursCount: 1,
+        type: datePas1.tip === 'PE_JOC' ? 'joc' : 'ora',
+        equipment: echipamenteSelectate,
+        totalAmount: totalFinalCalculat
+    };
+
+    try {
+        const response = await fetch(
+            'http://localhost:8080/api/bookings',
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            }
+        );
+
+        const responseText = await response.text();
+
+        if (!response.ok) {
+            throw new Error(
+                responseText || 'Eroare la salvarea rezervării.'
+            );
+        }
+
+        const result = JSON.parse(responseText);
+
+        console.log('Rezervare salvată:', result);
+
+        avanseazaLaPasul(5);
+
+    } catch (err: unknown) {
+        const msg = err instanceof Error
+            ? err.message
+            : 'Nu s-a putut comunica cu serverul.';
+
+        alert(msg);
+    }
+};
+
+
+  if (!Number.isInteger(idSelectat) || !facilitateSelectata) {
     return (
       <div className="min-h-screen bg-slate-950 text-white p-10 text-center">
         <h2 className="text-xl font-bold text-rose-400">
@@ -104,9 +217,7 @@ export const BookingWizard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-10 space-y-6">
-
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-800">
-
         {pasii.map((pas) => {
           const esteDeblocat = pas.nr <= pasMaximAtins;
           const esteActiv = pasCurent === pas.nr;
@@ -129,11 +240,9 @@ export const BookingWizard: React.FC = () => {
             </button>
           );
         })}
-
       </div>
 
       <div className="flex justify-between items-center">
-
         <div>
           <h1 className="text-2xl font-bold text-white">
             {facilitateSelectata.nume}
@@ -151,7 +260,6 @@ export const BookingWizard: React.FC = () => {
         >
           Înapoi la Facilități
         </button>
-
       </div>
 
       {pasCurent === 1 && (
@@ -190,13 +298,14 @@ export const BookingWizard: React.FC = () => {
       {pasCurent === 4 && (
         <Payment
           sumaPlata={totalFinalCalculat}
-          onNext={() => avanseazaLaPasul(5)}
+          onNext={() => {
+            void salveazaRezervareInBackend();
+          }}
           onBack={() => setPasCurent(3)}
         />
       )}
 
       {pasCurent === 5 && <Confirm />}
-
     </div>
   );
 };
