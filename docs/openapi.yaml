@@ -2,41 +2,50 @@ openapi: 3.0.3
 
 info:
   title: Rezervări Sport USV API
-  version: 1.1.0
+  version: 1.2.0
   description: |
     Contractul RESTful (Design-First) pentru platforma de rezervări baze sportive USV.
-    Acest document definește interfața dintre client (ex. aplicație web/mobilă) și backend.
+    Sincronizat cu schema MySQL 8.0+ (`rezervari_sport_usv`).
 
     Convenții:
     - Autentificare: JWT Bearer, header `Authorization: Bearer <token>`.
-    - Erori: RFC 7807, `application/problem+json`.
-    - Sumele de bani sunt exprimate în RON, cu pas de 0.01.
-    - Orele sloturilor sunt în ora locală (Europe/Bucharest).
+    - Erori: RFC 7807 (`application/problem+json`), extins cu lista `errors` pentru validări pe câmp.
+    - Sumele de bani sunt exprimate în RON (`DECIMAL(10,2)` în DB), cu pas de 0.01.
+    - Fus orar: Toate câmpurile `date-time` sunt interpretate și convertite în fusul orar `Europe/Bucharest`.
+    - Sloturi orare: Încep exclusiv la oră fixă (`MINUTE = 0`, `SECOND = 0`).
 
 servers:
   - url: http://localhost:8080/api
     description: Server de dezvoltare local
   - url: https://api.sport.usv.ro/api
-    description: Server de producție (URL provizoriu, de actualizat după alegerea platformei de deploy)
+    description: Server de producție
 
 security:
   - bearerAuth: []
 
 tags:
   - name: Auth
-    description: Autentificare și gestionare sesiuni
+    description: Autentificare, înregistrare și resetare parolă
   - name: Users
-    description: Operațiuni utilizatori și profil
-  - name: Facilities
-    description: Baze sportive și disponibilitate
-  - name: Bookings
-    description: Gestionarea rezervărilor
-  - name: Payments
-    description: Procesarea plăților
+    description: Profilul și preferințele utilizatorului curent
   - name: App
-    description: Date globale (Echipamente, Setări, Termeni)
+    description: Date globale (Setări, Statuturi/Reduceri, Echipamente, Termeni)
+  - name: Facilities
+    description: Baze sportive, program și disponibilitate
+  - name: Bookings
+    description: Crearea, vizualizarea și anularea rezervărilor
+  - name: Payments
+    description: Procesarea și verificarea plăților
+  - name: Invoices
+    description: Facturi emise pentru rezervări
+  - name: Notifications
+    description: Notificările in-app ale utilizatorului
+  - name: Admin
+    description: Operațiuni administrative (necesită rol `admin`)
 
 paths:
+
+  # ==================== AUTH ====================
 
   /auth/login:
     post:
@@ -58,8 +67,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         default:
           $ref: '#/components/responses/ServerError'
 
@@ -90,12 +103,58 @@ paths:
         default:
           $ref: '#/components/responses/ServerError'
 
+  /auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      operationId: forgotPassword
+      summary: Solicită un token de resetare a parolei pe email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '204':
+          description: Dacă adresa există, a fost trimis emailul de resetare
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Auth
+      operationId: resetPassword
+      summary: Setează o parolă nouă folosind token-ul primit
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Parola a fost actualizată cu succes
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  # ==================== USERS ====================
+
   /users/me:
     get:
       tags:
         - Users
       operationId: getCurrentUser
-      summary: Datele profilului curent
+      summary: Datele profilului curent (inclusiv reducerea aferentă statutului)
       responses:
         '200':
           description: Profil returnat
@@ -108,57 +167,66 @@ paths:
         default:
           $ref: '#/components/responses/ServerError'
 
-  /facilities:
-    get:
+    patch:
       tags:
-        - Facilities
-      operationId: listFacilities
-      summary: Lista facilităților sportive active
-      security: []
+        - Users
+      operationId: updateCurrentUser
+      summary: Actualizează datele de profil și preferințele de notificare
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
       responses:
         '200':
-          description: O listă de facilități
+          description: Profil actualizat
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Facility'
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         default:
           $ref: '#/components/responses/ServerError'
 
-  /facilities/{id}/availability:
+  # ==================== APP (CONFIGURAȚII GLOBALE) ====================
+
+  /app/settings:
     get:
       tags:
-        - Facilities
-      operationId: getFacilityAvailability
-      summary: Obține sloturile disponibile/ocupate pentru o zi
+        - App
+      operationId: getAppSettings
+      summary: Obține regulile și setările globale din app_settings
       security: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int64
-        - name: date
-          in: query
-          required: true
-          description: Data în format YYYY-MM-DD
-          schema:
-            type: string
-            format: date
       responses:
         '200':
-          description: O listă de sloturi orare
+          description: Setările globale ale aplicației
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppSettings'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /app/statuses:
+    get:
+      tags:
+        - App
+      operationId: listUserStatuses
+      summary: Lista statuturilor de utilizator și reducerile aferente
+      security: []
+      responses:
+        '200':
+          description: Lista statuturilor din tabelul user_statuses
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SlotAvailability'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                  $ref: '#/components/schemas/UserStatus'
         default:
           $ref: '#/components/responses/ServerError'
 
@@ -171,7 +239,7 @@ paths:
       security: []
       responses:
         '200':
-          description: O listă de echipamente
+          description: O listă de echipamente active (`is_active = true`)
           content:
             application/json:
               schema:
@@ -186,25 +254,93 @@ paths:
       tags:
         - App
       operationId: getCurrentTerms
-      summary: Obține termenii și condițiile curente
+      summary: Obține termenii și condițiile curente (`is_current = true`)
       security: []
       responses:
         '200':
-          description: Termenii curenți (necesari la rezervare)
+          description: Termenii curenți (necesari la crearea rezervării)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Terms'
+        '404':
+          $ref: '#/components/responses/NotFound'
         default:
           $ref: '#/components/responses/ServerError'
+
+  # ==================== FACILITIES ====================
+
+  /facilities:
+    get:
+      tags:
+        - Facilities
+      operationId: listFacilities
+      summary: Lista facilităților sportive active și programul lor săptămânal
+      security: []
+      responses:
+        '200':
+          description: O listă de facilități active (`is_active = true`)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Facility'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /facilities/{id}/availability:
+    get:
+      tags:
+        - Facilities
+      operationId: getFacilityAvailability
+      summary: Obține statusul fiecărui slot orar (00:00 - 23:00) pentru o facilitate și o zi
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: date
+          in: query
+          required: true
+          description: Data în format YYYY-MM-DD (Europe/Bucharest)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Lista sloturilor orare pentru ziua respectivă
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SlotAvailability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  # ==================== BOOKINGS ====================
 
   /bookings:
     get:
       tags:
         - Bookings
       operationId: listMyBookings
-      summary: Istoricul rezervărilor utilizatorului curent
+      summary: Rezervările utilizatorului curent (din view-ul `v_my_bookings`)
       parameters:
+        - name: active_only
+          in: query
+          required: false
+          description: Dacă este true, filtrează doar rezervările active (`in_asteptare`, `aprobata`); dacă este false, istoricul; dacă lipsește, toate.
+          schema:
+            type: boolean
         - name: page
           in: query
           required: false
@@ -247,7 +383,7 @@ paths:
               $ref: '#/components/schemas/BookingRequest'
       responses:
         '201':
-          description: Rezervare creată cu succes (status 'in_asteptare')
+          description: Rezervare creată cu succes (status `in_asteptare`)
           content:
             application/json:
               schema:
@@ -266,7 +402,7 @@ paths:
       tags:
         - Bookings
       operationId: getBookingById
-      summary: Detaliile unei rezervări a utilizatorului curent
+      summary: Detaliile complete ale unei rezervări a utilizatorului curent
       parameters:
         - name: id
           in: path
@@ -293,7 +429,7 @@ paths:
       tags:
         - Bookings
       operationId: cancelBooking
-      summary: Anulează o rezervare existentă
+      summary: Anulează o rezervare existentă (dacă `can_cancel` este true)
       parameters:
         - name: id
           in: path
@@ -306,27 +442,26 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-                  maxLength: 255
-                  description: Motivul anulării (opțional)
+              $ref: '#/components/schemas/CancelBookingRequest'
       responses:
         '200':
-          description: Rezervare anulată cu succes
+          description: Rezervare anulată cu succes; sloturile au fost eliberate
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BookingSummary'
+                $ref: '#/components/schemas/BookingDetail'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         default:
           $ref: '#/components/responses/ServerError'
+
+  # ==================== PAYMENTS & INVOICES ====================
 
   /payments/initiate:
     post:
@@ -342,7 +477,7 @@ paths:
               $ref: '#/components/schemas/PaymentInitiateRequest'
       responses:
         '200':
-          description: Plată inițiată, returnează link-ul sau confirmarea
+          description: Plată inițiată
           content:
             application/json:
               schema:
@@ -353,6 +488,270 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /payments/{id}:
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentById
+      summary: Verifică statusul unei plăți (ex. după întoarcerea din gateway-ul de plată)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Detaliile plății
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /bookings/{id}/invoice:
+    get:
+      tags:
+        - Invoices
+      operationId: getBookingInvoice
+      summary: Obține factura emisă pentru o rezervare plătită
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Datele facturii
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  # ==================== NOTIFICATIONS ====================
+
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      operationId: listMyNotifications
+      summary: Lista notificărilor utilizatorului curent
+      parameters:
+        - name: unread_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Lista notificărilor
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /notifications/{id}/read:
+    patch:
+      tags:
+        - Notifications
+      operationId: markNotificationAsRead
+      summary: Marchează o notificare ca citită
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Notificare marcată ca citită
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  # ==================== ADMIN ====================
+
+  /admin/bookings:
+    get:
+      tags:
+        - Admin
+      operationId: listAdminBookings
+      summary: Lista cererilor de rezervare pentru panoul admin (`v_admin_requests`)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/BookingStatus'
+      responses:
+        '200':
+          description: Lista rezervărilor cu starea plății
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminBookingRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /admin/bookings/{id}/approve:
+    post:
+      tags:
+        - Admin
+      operationId: approveBooking
+      summary: Aprobă o rezervare aflată în așteptare
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Rezervare aprobată
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /admin/bookings/{id}/reject:
+    post:
+      tags:
+        - Admin
+      operationId: rejectBooking
+      summary: Respinge o rezervare și eliberează automat sloturile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelBookingRequest'
+      responses:
+        '200':
+          description: Rezervare respinsă
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+  /admin/facility-blocks:
+    get:
+      tags:
+        - Admin
+      operationId: listFacilityBlocks
+      summary: Lista intervalelor blocate administrativ (`facility_blocks`)
+      parameters:
+        - name: facility_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Lista blocărilor
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FacilityBlock'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags:
+        - Admin
+      operationId: createFacilityBlock
+      summary: Blochează o facilitate pentru mentenanță sau competiții
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FacilityBlockRequest'
+      responses:
+        '201':
+          description: Blocare creată
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityBlock'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
         default:
           $ref: '#/components/responses/ServerError'
 
@@ -366,14 +765,21 @@ components:
 
   responses:
     BadRequest:
-      description: Date de intrare invalide
+      description: Date de intrare invalide sau încălcarea regulilor de validare
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ErrorDetail'
 
     Unauthorized:
-      description: Token JWT lipsă sau invalid
+      description: Token JWT lipsă, expirat sau invalid
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDetail'
+
+    Forbidden:
+      description: Acces interzis (rol insuficient sau cont dezactivat)
       content:
         application/problem+json:
           schema:
@@ -387,7 +793,7 @@ components:
             $ref: '#/components/schemas/ErrorDetail'
 
     Conflict:
-      description: Conflict de stare (ex. slot orar deja ocupat)
+      description: Conflict de stare (ex. slot deja ocupat, email existent, termen de anulare depășit)
       content:
         application/problem+json:
           schema:
@@ -402,7 +808,7 @@ components:
 
   schemas:
 
-    # --- ENUMURI comune ---
+    # ==================== ENUMURI COMUNE ====================
 
     BookingType:
       type: string
@@ -419,7 +825,32 @@ components:
         - anulata
         - finalizata
 
-    # --- AUTH & USERS ---
+    PaymentMethod:
+      type: string
+      enum:
+        - card_online
+        - link_plata
+        - numerar
+
+    PaymentStatus:
+      type: string
+      enum:
+        - initiata
+        - reusita
+        - esuata
+        - rambursata
+
+    NotificationType:
+      type: string
+      enum:
+        - confirmare
+        - reminder
+        - anulare
+        - plata
+        - factura
+        - info
+
+    # ==================== AUTH & USERS ====================
 
     LoginRequest:
       type: object
@@ -430,6 +861,7 @@ components:
         email:
           type: string
           format: email
+          maxLength: 255
         password:
           type: string
           format: password
@@ -444,37 +876,114 @@ components:
         email:
           type: string
           format: email
+          maxLength: 255
         password:
           type: string
           format: password
           minLength: 8
+          maxLength: 100
           description: Minim 8 caractere
         full_name:
           type: string
+          minLength: 2
+          maxLength: 150
         phone:
           type: string
+          maxLength: 30
+          nullable: true
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - new_password
+      properties:
+        token:
+          type: string
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 100
 
     AuthResponse:
       type: object
+      required:
+        - token
+        - token_type
+        - expires_in
+        - user
       properties:
         token:
           type: string
           description: JWT Bearer Token
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          format: int64
+          description: Durata de valabilitate a token-ului în secunde
         user:
           $ref: '#/components/schemas/User'
 
+    UserStatus:
+      type: object
+      required:
+        - code
+        - label
+        - discount_percent
+      properties:
+        code:
+          type: string
+          example: student
+        label:
+          type: string
+          example: Student
+        discount_percent:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          example: 50.0
+
     User:
       type: object
+      required:
+        - id
+        - email
+        - full_name
+        - role
+        - status_code
+        - status_label
+        - discount_percent
+        - status_verified
+        - notify_in_app
+        - notify_email
+        - reminder_minutes
+        - created_at
       properties:
         id:
           type: integer
           format: int64
         email:
           type: string
+          format: email
         full_name:
           type: string
         phone:
           type: string
+          nullable: true
         role:
           type: string
           enum:
@@ -482,7 +991,14 @@ components:
             - admin
         status_code:
           type: string
-          description: Codul din tabelul user_statuses (momentan 'student', 'cadru', 'extern'); tabelul permite extensii viitoare
+          description: Codul din tabelul user_statuses (`student`, `cadru`, `extern`)
+        status_label:
+          type: string
+          description: Eticheta din user_statuses (ex. `Student`)
+        discount_percent:
+          type: number
+          format: double
+          description: Procentul de reducere asociat statutului (0 - 100)
         status_verified:
           type: boolean
         notify_in_app:
@@ -500,10 +1016,84 @@ components:
           type: string
           format: date-time
 
-    # --- FACILITIES & EQUIPMENT ---
+    UpdateUserRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          minLength: 2
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 30
+          nullable: true
+        notify_in_app:
+          type: boolean
+        notify_email:
+          type: boolean
+        reminder_minutes:
+          type: integer
+          enum:
+            - 30
+            - 60
+            - 120
+            - 1440
+
+    # ==================== APP, FACILITIES & EQUIPMENT ====================
+
+    AppSettings:
+      type: object
+      required:
+        - cancellation_hours
+        - arrival_minutes
+        - booking_horizon_days
+        - currency
+      properties:
+        cancellation_hours:
+          type: integer
+          description: Numărul minim de ore înainte de start pentru anulare gratuită
+          example: 12
+        arrival_minutes:
+          type: integer
+          description: Cu câte minute înainte se permite accesul cu legitimația USV
+          example: 10
+        booking_horizon_days:
+          type: integer
+          description: Numărul maxim de zile în avans pentru rezervare
+          example: 7
+        currency:
+          type: string
+          example: RON
+
+    FacilityHours:
+      type: object
+      required:
+        - weekday
+        - open_hour
+        - close_hour
+      properties:
+        weekday:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: 1 = Luni ... 7 = Duminică
+        open_hour:
+          type: integer
+          minimum: 0
+          maximum: 23
+        close_hour:
+          type: integer
+          minimum: 1
+          maximum: 24
 
     Facility:
       type: object
+      required:
+        - id
+        - name
+        - price_per_hour
+        - game_multiplier
+        - hours
       properties:
         id:
           type: integer
@@ -512,6 +1102,7 @@ components:
           type: string
         description:
           type: string
+          nullable: true
         price_per_hour:
           type: number
           format: double
@@ -520,15 +1111,22 @@ components:
         game_multiplier:
           type: number
           format: double
-          description: Multiplicatorul aplicat pentru rezervări de tip 'joc'
+          description: Multiplicatorul aplicat pentru rezervări de tip `joc` (implicit 1.50)
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacilityHours'
 
     SlotAvailability:
       type: object
+      required:
+        - start_time
+        - status
       properties:
         start_time:
           type: string
-          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
-          description: Ora locală de început a slotului, format HH:mm (Europe/Bucharest). Data rezultă din parametrul `date` din query.
+          pattern: '^([01][0-9]|2[0-3]):00$'
+          description: Ora locală fixă de început a slotului, format HH:00 (Europe/Bucharest)
         status:
           type: string
           enum:
@@ -536,10 +1134,17 @@ components:
             - rezervare
             - blocat
             - inchis
-          description: Statusul conform view-ului v_occupied_slots
+          description: |
+            - `inchis`: în afara intervalului `[open_hour, close_hour)` din `facility_hours`
+            - `rezervare` / `blocat`: din view-ul `v_occupied_slots`
+            - `disponibil`: în program și neocupat
 
     Equipment:
       type: object
+      required:
+        - id
+        - name
+        - price
       properties:
         id:
           type: integer
@@ -558,6 +1163,10 @@ components:
 
     Terms:
       type: object
+      required:
+        - id
+        - body
+        - published_at
       properties:
         id:
           type: integer
@@ -568,7 +1177,7 @@ components:
           type: string
           format: date-time
 
-    # --- BOOKINGS ---
+    # ==================== BOOKINGS ====================
 
     BookingRequest:
       type: object
@@ -587,16 +1196,19 @@ components:
         start_at:
           type: string
           format: date-time
+          description: Data și ora de început (trebuie să fie la oră fixă `:00:00` în Europe/Bucharest)
         hours_count:
           type: integer
           minimum: 1
-          description: Durata în ore (numărul de sloturi ocupate). Obligatoriu pentru ambele tipuri; la 'joc' prețul se calculează cu game_multiplier, dar durata rămâne necesară pentru sloturi.
+          maximum: 16
+          description: Durata în ore (numărul de sloturi ocupate)
         terms_version_id:
           type: integer
           format: int64
-          description: ID-ul termenilor acceptați (din /app/terms/current)
+          description: ID-ul termenilor acceptați (din `GET /app/terms/current`)
         equipment:
           type: array
+          default: []
           items:
             $ref: '#/components/schemas/BookingEquipmentRequest'
 
@@ -612,9 +1224,46 @@ components:
         quantity:
           type: integer
           minimum: 1
+          maximum: 100
+
+    BookingEquipmentItem:
+      type: object
+      required:
+        - equipment_id
+        - name
+        - quantity
+        - unit_price
+      properties:
+        equipment_id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        quantity:
+          type: integer
+        unit_price:
+          type: number
+          format: double
+          multipleOf: 0.01
+          description: Prețul unitar la momentul rezervării, în RON
+
+    CancelBookingRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: Motivul anulării/respingerii (opțional)
 
     BookingPage:
       type: object
+      required:
+        - content
+        - page
+        - size
+        - total_elements
+        - total_pages
       properties:
         content:
           type: array
@@ -622,10 +1271,8 @@ components:
             $ref: '#/components/schemas/BookingSummary'
         page:
           type: integer
-          description: Pagina curentă (începe de la 0)
         size:
           type: integer
-          description: Dimensiunea paginii
         total_elements:
           type: integer
           format: int64
@@ -634,8 +1281,22 @@ components:
 
     BookingSummary:
       type: object
+      required:
+        - id
+        - facility_id
+        - facility_name
+        - type
+        - status
+        - start_at
+        - hours_count
+        - total_amount
+        - is_active_booking
+        - can_cancel
       properties:
         id:
+          type: integer
+          format: int64
+        facility_id:
           type: integer
           format: int64
         facility_name:
@@ -647,32 +1308,46 @@ components:
         start_at:
           type: string
           format: date-time
+        hours_count:
+          type: integer
         total_amount:
           type: number
           format: double
           multipleOf: 0.01
-          description: Suma totală, în RON
+          description: Suma totală de plată, în RON
+        is_active_booking:
+          type: boolean
+          description: Calculat din `v_my_bookings` (`in_asteptare` sau `aprobata`)
         can_cancel:
           type: boolean
-          description: Calculat din v_my_bookings
+          description: Calculat din `v_my_bookings` în funcție de `cancellation_hours`
 
     BookingDetail:
       allOf:
         - $ref: '#/components/schemas/BookingSummary'
         - type: object
+          required:
+            - unit_price
+            - base_amount
+            - equipment_amount
+            - discount_percent
+            - discount_amount
+            - terms_version_id
+            - created_at
+            - equipment_list
           properties:
-            hours_count:
-              type: integer
+            unit_price:
+              type: number
+              format: double
+              multipleOf: 0.01
             base_amount:
               type: number
               format: double
               multipleOf: 0.01
-              description: Suma de bază, în RON
             equipment_amount:
               type: number
               format: double
               multipleOf: 0.01
-              description: Suma echipamentelor, în RON
             discount_percent:
               type: number
               format: double
@@ -680,26 +1355,29 @@ components:
               type: number
               format: double
               multipleOf: 0.01
-              description: Reducerea aplicată, în RON
+            terms_version_id:
+              type: integer
+              format: int64
+            approved_at:
+              type: string
+              format: date-time
+              nullable: true
+            cancelled_at:
+              type: string
+              format: date-time
+              nullable: true
+            cancel_reason:
+              type: string
+              nullable: true
             created_at:
               type: string
               format: date-time
             equipment_list:
               type: array
               items:
-                type: object
-                properties:
-                  name:
-                    type: string
-                  quantity:
-                    type: integer
-                  unit_price:
-                    type: number
-                    format: double
-                    multipleOf: 0.01
-                    description: Prețul unitar, în RON
+                $ref: '#/components/schemas/BookingEquipmentItem'
 
-    # --- PAYMENTS ---
+    # ==================== PAYMENTS & INVOICES ====================
 
     PaymentInitiateRequest:
       type: object
@@ -711,34 +1389,226 @@ components:
           type: integer
           format: int64
         method:
-          type: string
-          enum:
-            - card_online
-            - link_plata
-            - numerar
+          $ref: '#/components/schemas/PaymentMethod'
 
     PaymentInitiateResponse:
       type: object
+      required:
+        - payment_id
+        - status
       properties:
         payment_id:
           type: integer
           format: int64
         status:
-          type: string
-          enum:
-            - initiata
-            - reusita
-            - esuata
-          description: Submulțime din payments.status; 'rambursata' nu apare la inițiere
+          $ref: '#/components/schemas/PaymentStatus'
         payment_link:
           type: string
           nullable: true
-          description: Prezent doar dacă metoda a fost card_online
+          description: Prezent pentru `card_online` și `link_plata`; null pentru `numerar`
 
-    # --- ERRORS (RFC 7807) ---
+    PaymentDetail:
+      type: object
+      required:
+        - id
+        - booking_id
+        - amount
+        - currency
+        - method
+        - status
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+        booking_id:
+          type: integer
+          format: int64
+        amount:
+          type: number
+          format: double
+          multipleOf: 0.01
+        currency:
+          type: string
+          example: RON
+        method:
+          $ref: '#/components/schemas/PaymentMethod'
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        card_last4:
+          type: string
+          nullable: true
+        payment_link:
+          type: string
+          nullable: true
+        failure_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Invoice:
+      type: object
+      required:
+        - id
+        - booking_id
+        - series
+        - number
+        - total_amount
+        - issued_at
+      properties:
+        id:
+          type: integer
+          format: int64
+        booking_id:
+          type: integer
+          format: int64
+        payment_id:
+          type: integer
+          format: int64
+          nullable: true
+        series:
+          type: string
+          example: USV
+        number:
+          type: integer
+        total_amount:
+          type: number
+          format: double
+          multipleOf: 0.01
+        pdf_path:
+          type: string
+          nullable: true
+        issued_at:
+          type: string
+          format: date-time
+
+    # ==================== NOTIFICATIONS ====================
+
+    Notification:
+      type: object
+      required:
+        - id
+        - type
+        - message
+        - is_read
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+        booking_id:
+          type: integer
+          format: int64
+          nullable: true
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        message:
+          type: string
+        is_read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    # ==================== ADMIN ====================
+
+    AdminBookingRequest:
+      type: object
+      required:
+        - booking_id
+        - client
+        - facility
+        - start_at
+        - hours_count
+        - total_amount
+        - status
+        - payment_state
+      properties:
+        booking_id:
+          type: integer
+          format: int64
+        client:
+          type: string
+        facility:
+          type: string
+        start_at:
+          type: string
+          format: date-time
+        hours_count:
+          type: integer
+        total_amount:
+          type: number
+          format: double
+          multipleOf: 0.01
+        status:
+          $ref: '#/components/schemas/BookingStatus'
+        payment_state:
+          type: string
+          enum:
+            - Plătit
+            - Neplătit
+
+    FacilityBlockRequest:
+      type: object
+      required:
+        - facility_id
+        - starts_at
+        - ends_at
+      properties:
+        facility_id:
+          type: integer
+          format: int64
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          maxLength: 255
+          nullable: true
+
+    FacilityBlock:
+      allOf:
+        - $ref: '#/components/schemas/FacilityBlockRequest'
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: integer
+              format: int64
+            created_by:
+              type: integer
+              format: int64
+              nullable: true
+
+    # ==================== ERRORS (RFC 7807) ====================
+
+    FieldError:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+        message:
+          type: string
 
     ErrorDetail:
       type: object
+      required:
+        - title
+        - status
+        - detail
       properties:
         type:
           type: string
@@ -755,3 +1625,8 @@ components:
         instance:
           type: string
           description: URI-ul instanței unde a apărut eroarea
+        errors:
+          type: array
+          description: Lista erorilor de validare pe câmpuri (prezentă la HTTP 400)
+          items:
+            $ref: '#/components/schemas/FieldError'
