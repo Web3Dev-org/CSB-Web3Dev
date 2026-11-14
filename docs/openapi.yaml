@@ -2,13 +2,15 @@ openapi: 3.0.3
 
 info:
   title: Rezervări Sport USV API
-  version: 1.2.0
+  version: 1.3.0
   description: |
     Contractul RESTful (Design-First) pentru platforma de rezervări baze sportive USV.
     Sincronizat cu schema MySQL 8.0+ (`rezervari_sport_usv`).
 
     Convenții:
     - Autentificare: JWT Bearer, header `Authorization: Bearer <token>`.
+    - Payload & Query Params: `camelCase` (aliniat nativ cu Java Spring Boot și React TypeScript).
+    - Valori Enum: Păstrează exact valorile din coloanele `ENUM` / codurile din MySQL (ex. `in_asteptare`, `card_online`, `student`).
     - Erori: RFC 7807 (`application/problem+json`), extins cu lista `errors` pentru validări pe câmp.
     - Sumele de bani sunt exprimate în RON (`DECIMAL(10,2)` în DB), cu pas de 0.01.
     - Fus orar: Toate câmpurile `date-time` sunt interpretate și convertite în fusul orar `Europe/Bucharest`.
@@ -199,7 +201,7 @@ paths:
       tags:
         - App
       operationId: getAppSettings
-      summary: Obține regulile și setările globale din app_settings
+      summary: Obține regulile și setările globale din `app_settings`
       security: []
       responses:
         '200':
@@ -220,7 +222,7 @@ paths:
       security: []
       responses:
         '200':
-          description: Lista statuturilor din tabelul user_statuses
+          description: Lista statuturilor din tabelul `user_statuses`
           content:
             application/json:
               schema:
@@ -335,7 +337,7 @@ paths:
       operationId: listMyBookings
       summary: Rezervările utilizatorului curent (din view-ul `v_my_bookings`)
       parameters:
-        - name: active_only
+        - name: activeOnly
           in: query
           required: false
           description: Dacă este true, filtrează doar rezervările active (`in_asteptare`, `aprobata`); dacă este false, istoricul; dacă lipsește, toate.
@@ -429,7 +431,7 @@ paths:
       tags:
         - Bookings
       operationId: cancelBooking
-      summary: Anulează o rezervare existentă (dacă `can_cancel` este true)
+      summary: Anulează o rezervare existentă (dacă `canCancel` este true)
       parameters:
         - name: id
           in: path
@@ -556,7 +558,7 @@ paths:
       operationId: listMyNotifications
       summary: Lista notificărilor utilizatorului curent
       parameters:
-        - name: unread_only
+        - name: unreadOnly
           in: query
           required: false
           schema:
@@ -704,7 +706,7 @@ paths:
       operationId: listFacilityBlocks
       summary: Lista intervalelor blocate administrativ (`facility_blocks`)
       parameters:
-        - name: facility_id
+        - name: facilityId
           in: query
           required: false
           schema:
@@ -871,7 +873,7 @@ components:
       required:
         - email
         - password
-        - full_name
+        - fullName
       properties:
         email:
           type: string
@@ -883,7 +885,7 @@ components:
           minLength: 8
           maxLength: 100
           description: Minim 8 caractere
-        full_name:
+        fullName:
           type: string
           minLength: 2
           maxLength: 150
@@ -906,11 +908,11 @@ components:
       type: object
       required:
         - token
-        - new_password
+        - newPassword
       properties:
         token:
           type: string
-        new_password:
+        newPassword:
           type: string
           format: password
           minLength: 8
@@ -920,17 +922,17 @@ components:
       type: object
       required:
         - token
-        - token_type
-        - expires_in
+        - tokenType
+        - expiresIn
         - user
       properties:
         token:
           type: string
           description: JWT Bearer Token
-        token_type:
+        tokenType:
           type: string
           example: Bearer
-        expires_in:
+        expiresIn:
           type: integer
           format: int64
           description: Durata de valabilitate a token-ului în secunde
@@ -942,7 +944,7 @@ components:
       required:
         - code
         - label
-        - discount_percent
+        - discountPercent
       properties:
         code:
           type: string
@@ -950,7 +952,7 @@ components:
         label:
           type: string
           example: Student
-        discount_percent:
+        discountPercent:
           type: number
           format: double
           minimum: 0
@@ -962,16 +964,16 @@ components:
       required:
         - id
         - email
-        - full_name
+        - fullName
         - role
-        - status_code
-        - status_label
-        - discount_percent
-        - status_verified
-        - notify_in_app
-        - notify_email
-        - reminder_minutes
-        - created_at
+        - statusCode
+        - statusLabel
+        - discountPercent
+        - statusVerified
+        - notifyInApp
+        - notifyEmail
+        - reminderMinutes
+        - createdAt
       properties:
         id:
           type: integer
@@ -979,7 +981,7 @@ components:
         email:
           type: string
           format: email
-        full_name:
+        fullName:
           type: string
         phone:
           type: string
@@ -989,37 +991,37 @@ components:
           enum:
             - user
             - admin
-        status_code:
+        statusCode:
           type: string
-          description: Codul din tabelul user_statuses (`student`, `cadru`, `extern`)
-        status_label:
+          description: Codul din tabelul `user_statuses` (`student`, `cadru`, `extern`)
+        statusLabel:
           type: string
-          description: Eticheta din user_statuses (ex. `Student`)
-        discount_percent:
+          description: Eticheta din `user_statuses` (ex. `Student`)
+        discountPercent:
           type: number
           format: double
           description: Procentul de reducere asociat statutului (0 - 100)
-        status_verified:
+        statusVerified:
           type: boolean
-        notify_in_app:
+        notifyInApp:
           type: boolean
-        notify_email:
+        notifyEmail:
           type: boolean
-        reminder_minutes:
+        reminderMinutes:
           type: integer
           enum:
             - 30
             - 60
             - 120
             - 1440
-        created_at:
+        createdAt:
           type: string
           format: date-time
 
     UpdateUserRequest:
       type: object
       properties:
-        full_name:
+        fullName:
           type: string
           minLength: 2
           maxLength: 150
@@ -1027,11 +1029,11 @@ components:
           type: string
           maxLength: 30
           nullable: true
-        notify_in_app:
+        notifyInApp:
           type: boolean
-        notify_email:
+        notifyEmail:
           type: boolean
-        reminder_minutes:
+        reminderMinutes:
           type: integer
           enum:
             - 30
@@ -1044,20 +1046,20 @@ components:
     AppSettings:
       type: object
       required:
-        - cancellation_hours
-        - arrival_minutes
-        - booking_horizon_days
+        - cancellationHours
+        - arrivalMinutes
+        - bookingHorizonDays
         - currency
       properties:
-        cancellation_hours:
+        cancellationHours:
           type: integer
           description: Numărul minim de ore înainte de start pentru anulare gratuită
           example: 12
-        arrival_minutes:
+        arrivalMinutes:
           type: integer
           description: Cu câte minute înainte se permite accesul cu legitimația USV
           example: 10
-        booking_horizon_days:
+        bookingHorizonDays:
           type: integer
           description: Numărul maxim de zile în avans pentru rezervare
           example: 7
@@ -1069,19 +1071,19 @@ components:
       type: object
       required:
         - weekday
-        - open_hour
-        - close_hour
+        - openHour
+        - closeHour
       properties:
         weekday:
           type: integer
           minimum: 1
           maximum: 7
           description: 1 = Luni ... 7 = Duminică
-        open_hour:
+        openHour:
           type: integer
           minimum: 0
           maximum: 23
-        close_hour:
+        closeHour:
           type: integer
           minimum: 1
           maximum: 24
@@ -1091,8 +1093,8 @@ components:
       required:
         - id
         - name
-        - price_per_hour
-        - game_multiplier
+        - pricePerHour
+        - gameMultiplier
         - hours
       properties:
         id:
@@ -1103,12 +1105,12 @@ components:
         description:
           type: string
           nullable: true
-        price_per_hour:
+        pricePerHour:
           type: number
           format: double
           multipleOf: 0.01
           description: Prețul pe oră, în RON
-        game_multiplier:
+        gameMultiplier:
           type: number
           format: double
           description: Multiplicatorul aplicat pentru rezervări de tip `joc` (implicit 1.50)
@@ -1120,10 +1122,10 @@ components:
     SlotAvailability:
       type: object
       required:
-        - start_time
+        - startTime
         - status
       properties:
-        start_time:
+        startTime:
           type: string
           pattern: '^([01][0-9]|2[0-3]):00$'
           description: Ora locală fixă de început a slotului, format HH:00 (Europe/Bucharest)
@@ -1166,14 +1168,14 @@ components:
       required:
         - id
         - body
-        - published_at
+        - publishedAt
       properties:
         id:
           type: integer
           format: int64
         body:
           type: string
-        published_at:
+        publishedAt:
           type: string
           format: date-time
 
@@ -1182,27 +1184,27 @@ components:
     BookingRequest:
       type: object
       required:
-        - facility_id
+        - facilityId
         - type
-        - start_at
-        - hours_count
-        - terms_version_id
+        - startAt
+        - hoursCount
+        - termsVersionId
       properties:
-        facility_id:
+        facilityId:
           type: integer
           format: int64
         type:
           $ref: '#/components/schemas/BookingType'
-        start_at:
+        startAt:
           type: string
           format: date-time
           description: Data și ora de început (trebuie să fie la oră fixă `:00:00` în Europe/Bucharest)
-        hours_count:
+        hoursCount:
           type: integer
           minimum: 1
           maximum: 16
           description: Durata în ore (numărul de sloturi ocupate)
-        terms_version_id:
+        termsVersionId:
           type: integer
           format: int64
           description: ID-ul termenilor acceptați (din `GET /app/terms/current`)
@@ -1215,10 +1217,10 @@ components:
     BookingEquipmentRequest:
       type: object
       required:
-        - equipment_id
+        - equipmentId
         - quantity
       properties:
-        equipment_id:
+        equipmentId:
           type: integer
           format: int64
         quantity:
@@ -1229,19 +1231,19 @@ components:
     BookingEquipmentItem:
       type: object
       required:
-        - equipment_id
+        - equipmentId
         - name
         - quantity
-        - unit_price
+        - unitPrice
       properties:
-        equipment_id:
+        equipmentId:
           type: integer
           format: int64
         name:
           type: string
         quantity:
           type: integer
-        unit_price:
+        unitPrice:
           type: number
           format: double
           multipleOf: 0.01
@@ -1262,8 +1264,8 @@ components:
         - content
         - page
         - size
-        - total_elements
-        - total_pages
+        - totalElements
+        - totalPages
       properties:
         content:
           type: array
@@ -1273,52 +1275,52 @@ components:
           type: integer
         size:
           type: integer
-        total_elements:
+        totalElements:
           type: integer
           format: int64
-        total_pages:
+        totalPages:
           type: integer
 
     BookingSummary:
       type: object
       required:
         - id
-        - facility_id
-        - facility_name
+        - facilityId
+        - facilityName
         - type
         - status
-        - start_at
-        - hours_count
-        - total_amount
-        - is_active_booking
-        - can_cancel
+        - startAt
+        - hoursCount
+        - totalAmount
+        - isActiveBooking
+        - canCancel
       properties:
         id:
           type: integer
           format: int64
-        facility_id:
+        facilityId:
           type: integer
           format: int64
-        facility_name:
+        facilityName:
           type: string
         type:
           $ref: '#/components/schemas/BookingType'
         status:
           $ref: '#/components/schemas/BookingStatus'
-        start_at:
+        startAt:
           type: string
           format: date-time
-        hours_count:
+        hoursCount:
           type: integer
-        total_amount:
+        totalAmount:
           type: number
           format: double
           multipleOf: 0.01
           description: Suma totală de plată, în RON
-        is_active_booking:
+        isActiveBooking:
           type: boolean
           description: Calculat din `v_my_bookings` (`in_asteptare` sau `aprobata`)
-        can_cancel:
+        canCancel:
           type: boolean
           description: Calculat din `v_my_bookings` în funcție de `cancellation_hours`
 
@@ -1327,52 +1329,52 @@ components:
         - $ref: '#/components/schemas/BookingSummary'
         - type: object
           required:
-            - unit_price
-            - base_amount
-            - equipment_amount
-            - discount_percent
-            - discount_amount
-            - terms_version_id
-            - created_at
-            - equipment_list
+            - unitPrice
+            - baseAmount
+            - equipmentAmount
+            - discountPercent
+            - discountAmount
+            - termsVersionId
+            - createdAt
+            - equipmentList
           properties:
-            unit_price:
+            unitPrice:
               type: number
               format: double
               multipleOf: 0.01
-            base_amount:
+            baseAmount:
               type: number
               format: double
               multipleOf: 0.01
-            equipment_amount:
+            equipmentAmount:
               type: number
               format: double
               multipleOf: 0.01
-            discount_percent:
+            discountPercent:
               type: number
               format: double
-            discount_amount:
+            discountAmount:
               type: number
               format: double
               multipleOf: 0.01
-            terms_version_id:
+            termsVersionId:
               type: integer
               format: int64
-            approved_at:
+            approvedAt:
               type: string
               format: date-time
               nullable: true
-            cancelled_at:
+            cancelledAt:
               type: string
               format: date-time
               nullable: true
-            cancel_reason:
+            cancelReason:
               type: string
               nullable: true
-            created_at:
+            createdAt:
               type: string
               format: date-time
-            equipment_list:
+            equipmentList:
               type: array
               items:
                 $ref: '#/components/schemas/BookingEquipmentItem'
@@ -1382,10 +1384,10 @@ components:
     PaymentInitiateRequest:
       type: object
       required:
-        - booking_id
+        - bookingId
         - method
       properties:
-        booking_id:
+        bookingId:
           type: integer
           format: int64
         method:
@@ -1394,15 +1396,15 @@ components:
     PaymentInitiateResponse:
       type: object
       required:
-        - payment_id
+        - paymentId
         - status
       properties:
-        payment_id:
+        paymentId:
           type: integer
           format: int64
         status:
           $ref: '#/components/schemas/PaymentStatus'
-        payment_link:
+        paymentLink:
           type: string
           nullable: true
           description: Prezent pentru `card_online` și `link_plata`; null pentru `numerar`
@@ -1411,17 +1413,17 @@ components:
       type: object
       required:
         - id
-        - booking_id
+        - bookingId
         - amount
         - currency
         - method
         - status
-        - created_at
+        - createdAt
       properties:
         id:
           type: integer
           format: int64
-        booking_id:
+        bookingId:
           type: integer
           format: int64
         amount:
@@ -1435,19 +1437,19 @@ components:
           $ref: '#/components/schemas/PaymentMethod'
         status:
           $ref: '#/components/schemas/PaymentStatus'
-        card_last4:
+        cardLast4:
           type: string
           nullable: true
-        payment_link:
+        paymentLink:
           type: string
           nullable: true
-        failure_reason:
+        failureReason:
           type: string
           nullable: true
-        created_at:
+        createdAt:
           type: string
           format: date-time
-        paid_at:
+        paidAt:
           type: string
           format: date-time
           nullable: true
@@ -1456,19 +1458,19 @@ components:
       type: object
       required:
         - id
-        - booking_id
+        - bookingId
         - series
         - number
-        - total_amount
-        - issued_at
+        - totalAmount
+        - issuedAt
       properties:
         id:
           type: integer
           format: int64
-        booking_id:
+        bookingId:
           type: integer
           format: int64
-        payment_id:
+        paymentId:
           type: integer
           format: int64
           nullable: true
@@ -1477,14 +1479,14 @@ components:
           example: USV
         number:
           type: integer
-        total_amount:
+        totalAmount:
           type: number
           format: double
           multipleOf: 0.01
-        pdf_path:
+        pdfPath:
           type: string
           nullable: true
-        issued_at:
+        issuedAt:
           type: string
           format: date-time
 
@@ -1496,13 +1498,13 @@ components:
         - id
         - type
         - message
-        - is_read
-        - created_at
+        - isRead
+        - createdAt
       properties:
         id:
           type: integer
           format: int64
-        booking_id:
+        bookingId:
           type: integer
           format: int64
           nullable: true
@@ -1510,9 +1512,9 @@ components:
           $ref: '#/components/schemas/NotificationType'
         message:
           type: string
-        is_read:
+        isRead:
           type: boolean
-        created_at:
+        createdAt:
           type: string
           format: date-time
 
@@ -1521,34 +1523,34 @@ components:
     AdminBookingRequest:
       type: object
       required:
-        - booking_id
+        - bookingId
         - client
         - facility
-        - start_at
-        - hours_count
-        - total_amount
+        - startAt
+        - hoursCount
+        - totalAmount
         - status
-        - payment_state
+        - paymentState
       properties:
-        booking_id:
+        bookingId:
           type: integer
           format: int64
         client:
           type: string
         facility:
           type: string
-        start_at:
+        startAt:
           type: string
           format: date-time
-        hours_count:
+        hoursCount:
           type: integer
-        total_amount:
+        totalAmount:
           type: number
           format: double
           multipleOf: 0.01
         status:
           $ref: '#/components/schemas/BookingStatus'
-        payment_state:
+        paymentState:
           type: string
           enum:
             - Plătit
@@ -1557,17 +1559,17 @@ components:
     FacilityBlockRequest:
       type: object
       required:
-        - facility_id
-        - starts_at
-        - ends_at
+        - facilityId
+        - startsAt
+        - endsAt
       properties:
-        facility_id:
+        facilityId:
           type: integer
           format: int64
-        starts_at:
+        startsAt:
           type: string
           format: date-time
-        ends_at:
+        endsAt:
           type: string
           format: date-time
         reason:
@@ -1585,7 +1587,7 @@ components:
             id:
               type: integer
               format: int64
-            created_by:
+            createdBy:
               type: integer
               format: int64
               nullable: true
