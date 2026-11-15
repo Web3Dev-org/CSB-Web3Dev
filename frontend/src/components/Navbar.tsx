@@ -6,12 +6,14 @@ import { Bell } from 'lucide-react';
 interface NavbarProps {
   utilizatorAutentificat: boolean;
   numarNotificari?: number;
+  esteAdmin?: boolean;
   onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   utilizatorAutentificat,
   numarNotificari = 0,
+  esteAdmin = false,
   onLogout,
 }) => {
   const navigate = useNavigate();
@@ -65,12 +67,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           </Link>
 
           {/* Administrare */}
-          <Link
-            to="/admin"
-            className="hover:text-sky-400 transition-colors"
-          >
-            Admin
-          </Link>
+          {esteAdmin && (
+            <Link
+              to="/admin"
+              className="hover:text-sky-400 transition-colors"
+            >
+              Admin
+            </Link>
+          )}
 
           {/* Notificări */}
           <div className="relative flex items-center">
