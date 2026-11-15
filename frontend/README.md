@@ -1,78 +1,47 @@
-# React + TypeScript + Vite
+# Frontend UI - USV Sports Booking
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+User interface built with **React** and **Vite**. Requires **Node.js 26.x**.
 
-Currently, two official plugins are available:
+To run this service as part of the full dev stack, see the [root README](../README.md). This file covers working on the frontend alone.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 💻 Local Execution (Standalone)
 
-## React Compiler
+To bypass containers and use the local Vite server for UI development:
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+1. Install dependencies (required initially or when `package.json` is modified):
+   ```bash
+   npm install
+   ```
+2. Start the development server:
+   ```bash
+   npm run dev
+   ```
+   The application will be accessible at `http://localhost:5173`.
 
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
+The local server expects the backend and database to be reachable — start them with the full-stack command from the [root README](../README.md), or see the [backend README](../backend/README.md) for a minimal DB-only setup.
 
-## Expanding the ESLint configuration
+## 🖼 Build Commands
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+* `npm run build` - Generates the optimized production bundle in the `/dist` directory.
+* `npm run lint` - Executes static code analysis to enforce formatting and best practices (requires ESLint configuration).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 🐳 Production Image (Testing)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+To build and serve the optimized React bundle using Nginx locally:
+```bash
+# Run from the /frontend directory
+docker build -t usv-frontend:prod -f Dockerfile.prod .
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+# Execute the container on port 8080
+docker run -p 8080:80 usv-frontend:prod
 ```
+*Access the standalone production container at `http://localhost:8080`.*
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+## 🐍 Container-Specific Notes
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+In the dev stack, the frontend container uses polling (`CHOKIDAR_USEPOLLING=true`) to detect file changes on the host OS, ensuring reliable Hot Module Replacement (HMR) across Windows, Linux, and macOS.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+If new packages are installed via `npm install` locally on the host machine, the frontend container must be restarted to synchronize the `node_modules` directory:
+```bash
+docker compose -f docker-compose.dev.yaml restart frontend
 ```

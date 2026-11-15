@@ -6,11 +6,11 @@
 --  Rulare: se execută o singură dată, de sus în jos, pe un server gol.
 -- =====================================================================
 
-DROP DATABASE IF EXISTS rezervari_sport_usv;
-CREATE DATABASE rezervari_sport_usv
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-USE rezervari_sport_usv;
+-- DROP DATABASE IF EXISTS rezervari_sport_usv;
+-- CREATE DATABASE rezervari_sport_usv
+--     CHARACTER SET utf8mb4
+--     COLLATE utf8mb4_unicode_ci;
+-- USE rezervari_sport_usv;
 
 -- ---------------------------------------------------------------------
 -- 1. STATUTURI UTILIZATOR + REDUCERI
