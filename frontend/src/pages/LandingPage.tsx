@@ -1,8 +1,10 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from "react";
+import { useNavigate } from "react-router";
+import { useAuth } from "../context/AuthContext";
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between p-4 md:p-8">
@@ -15,18 +17,32 @@ export const LandingPage: React.FC = () => {
           <span className="font-bold text-xl text-white">USV Campus</span>
         </div>
         <div className="space-x-3">
-          <button
-            onClick={() => navigate('/login')}
-            className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors"
-          >
-            Autentificare
-          </button>
-          <button
-            onClick={() => navigate('/signup')}
-            className="px-4 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-600 text-white rounded-md transition-colors"
-          >
-            Înregistrare
-          </button>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={() => navigate("/facilitati")}
+              className="px-4 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-600 text-white rounded-md transition-colors cursor-pointer"
+            >
+              Mergi la facilități
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                Autentificare
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/signup")}
+                className="px-4 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-600 text-white rounded-md transition-colors cursor-pointer"
+              >
+                Înregistrare
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -37,26 +53,43 @@ export const LandingPage: React.FC = () => {
         </div>
 
         <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight mb-6">
-          Acces simplificat la <span className="text-sky-400">facilitățile și rezervările</span> universității
+          Acces simplificat la{" "}
+          <span className="text-sky-400">facilitățile și rezervările</span>{" "}
+          universității
         </h1>
 
         <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-          Gestionează-ți accesul la sălile de lectură, terenurile de sport și alte facilități ale campusului într-un singur loc, rapid și eficient.
+          Gestionează-ți accesul la sălile de lectură, terenurile de sport și
+          alte facilități ale campusului într-un singur loc, rapid și eficient.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button
-            onClick={() => navigate('/signup')}
-            className="w-full sm:w-auto px-8 py-3 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-md shadow-lg shadow-sky-500/25 transition-colors"
-          >
-            Creează cont nou
-          </button>
-          <button
-            onClick={() => navigate('/login')}
-            className="w-full sm:w-auto px-8 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-medium rounded-md transition-colors"
-          >
-            Intră în cont
-          </button>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={() => navigate("/facilitati")}
+              className="w-full sm:w-auto px-8 py-3 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-md shadow-lg shadow-sky-500/25 transition-colors cursor-pointer"
+            >
+              Explorează facilitățile
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => navigate("/signup")}
+                className="w-full sm:w-auto px-8 py-3 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-md shadow-lg shadow-sky-500/25 transition-colors cursor-pointer"
+              >
+                Creează cont nou
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                className="w-full sm:w-auto px-8 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-medium rounded-md transition-colors cursor-pointer"
+              >
+                Intră în cont
+              </button>
+            </>
+          )}
         </div>
 
         {/* Feature Cards Grid */}
@@ -65,9 +98,12 @@ export const LandingPage: React.FC = () => {
             <div className="w-10 h-10 bg-sky-500/10 border border-sky-500/20 rounded-lg flex items-center justify-center text-sky-400 mb-4 font-bold">
               01
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Rezervări Rapide</h3>
+            <h3 className="text-lg font-bold text-white mb-2">
+              Rezervări Rapide
+            </h3>
             <p className="text-sm text-slate-400">
-              Rezervă locuri în sălile de lectură sau spațiile comune cu doar câteva clicuri.
+              Rezervă locuri în sălile de lectură sau spațiile comune cu doar
+              câteva clicuri.
             </p>
           </div>
 
@@ -75,9 +111,12 @@ export const LandingPage: React.FC = () => {
             <div className="w-10 h-10 bg-sky-500/10 border border-sky-500/20 rounded-lg flex items-center justify-center text-sky-400 mb-4 font-bold">
               02
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Facilități Campus</h3>
+            <h3 className="text-lg font-bold text-white mb-2">
+              Facilități Campus
+            </h3>
             <p className="text-sm text-slate-400">
-              Vezi disponibilitatea în timp real pentru terenurile de sport și sălile speciale.
+              Vezi disponibilitatea în timp real pentru terenurile de sport și
+              sălile speciale.
             </p>
           </div>
 
@@ -85,9 +124,12 @@ export const LandingPage: React.FC = () => {
             <div className="w-10 h-10 bg-sky-500/10 border border-sky-500/20 rounded-lg flex items-center justify-center text-sky-400 mb-4 font-bold">
               03
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Acces Securizat</h3>
+            <h3 className="text-lg font-bold text-white mb-2">
+              Acces Securizat
+            </h3>
             <p className="text-sm text-slate-400">
-              Autentificare securizată bazată pe adresa ta de email instituțională USV.
+              Autentificare securizată bazată pe adresa ta de email
+              instituțională USV.
             </p>
           </div>
         </div>
@@ -95,7 +137,8 @@ export const LandingPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="w-full max-w-6xl mx-auto py-4 border-t border-slate-900 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} Universitatea „Ștefan cel Mare” din Suceava. Toate drepturile rezervate.
+        © {new Date().getFullYear()} Universitatea „Ștefan cel Mare” din
+        Suceava. Toate drepturile rezervate.
       </footer>
     </div>
   );

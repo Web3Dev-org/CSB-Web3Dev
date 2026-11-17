@@ -1,105 +1,154 @@
-import React, { useState } from 'react';
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate
-} from 'react-router-dom';
+import React from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { Loader2 } from "lucide-react";
 
-import { Navbar } from './components/Navbar';
-import { Login } from './pages/Login';
-import { Facilities } from './pages/Facilities';
-import { BookingWizard } from './pages/BookingWizard';
-import { LandingPage } from './pages/LandingPage';
-import { SignUpPage } from './pages/SignUpPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { MyBookings } from './pages/MyBookings';
-import { AdminDashboard } from './pages/AdminDashboard';
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { Navbar } from "./components/Navbar";
 
-export type UserRole = 'user' | 'admin';
+import { LandingPage } from "./pages/LandingPage";
+import { LoginPage } from "./pages/LoginPage";
+import { SignUpPage } from "./pages/SignUpPage";
+import { FacilitiesPage } from "./pages/FacilitiesPage";
+import { BookingWizardPage } from "./pages/BookingWizardPage";
+import { MyBookingsPage } from "./pages/MyBookingsPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
-export interface CurrentUser {
-  email: string;
-  role: UserRole;
-}
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { isAuthenticated, isLoading } = useAuth();
 
-export const App: React.FC = () => {
-  // În loc de simplu boolean, ții utilizatorul curent (sau null dacă nu e logat)
-  const [utilizator, setUtilizator] = useState<CurrentUser | null>(null);
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center gap-2 text-sm text-slate-400">
+        <Loader2 className="w-5 h-5 animate-spin text-sky-400" />
+        Se verifică sesiunea...
+      </div>
+    );
+  }
 
-  const autentificat = utilizator !== null;
-  const esteAdmin = utilizator?.role === 'admin';
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const AppShell: React.FC = () => {
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      <Navbar user={user} onLogout={logout} />
+
+      <main className="flex-1">
+        <Routes>
+          {/* Pagina principală */}
+          <Route
+            path="/"
+            element={
+              isLoading ? null : isAuthenticated ? (
+                <Navigate to="/facilitati" replace />
+              ) : (
+                <LandingPage />
+              )
+            }
+          />
+
+          {/* Autentificare */}
+          <Route
+            path="/login"
+            element={
+              isAuthenticated ? (
+                <Navigate to="/facilitati" replace />
+              ) : (
+                <LoginPage />
+              )
+            }
+          />
+
+          {/* Înregistrare (+ aliasuri compatibile) */}
+          <Route
+            path="/signup"
+            element={
+              isAuthenticated ? (
+                <Navigate to="/facilitati" replace />
+              ) : (
+                <SignUpPage />
+              )
+            }
+          />
+          <Route
+            path="/register"
+            element={<Navigate to="/signup" replace />}
+          />
+          <Route
+            path="/inregistrare"
+            element={<Navigate to="/signup" replace />}
+          />
+
+          {/* Facilități sportive */}
+          <Route
+            path="/facilitati"
+            element={
+              <ProtectedRoute>
+                <FacilitiesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Rezervarea unei facilități */}
+          <Route
+            path="/rezervare/:idFacilitate"
+            element={
+              <ProtectedRoute>
+                <BookingWizardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Rezervările mele */}
+          <Route
+            path="/rezervarile-mele"
+            element={
+              <ProtectedRoute>
+                <MyBookingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Profil utilizator */}
+          <Route
+            path="/cont"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Rute inexistente */}
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to={isAuthenticated ? "/facilitati" : "/login"}
+                replace
+              />
+            }
+          />
+        </Routes>
+      </main>
+    </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
     <BrowserRouter>
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-
-        <Navbar
-          utilizatorAutentificat={autentificat}
-          esteAdmin={esteAdmin} // <-- Pasează-l în Navbar ca să ascunzi link-ul "Admin" pentru userii normali
-          numarNotificari={1}
-          onLogout={() => setUtilizator(null)}
-        />
-
-        <main className="flex-1">
-          <Routes>
-            {/* Autentificare */}
-            <Route
-              path="/login"
-              element={
-                autentificat ? (
-                  <Navigate to={esteAdmin ? "/admin" : "/facilitati"} replace />
-                ) : (
-                  <Login
-                    onLoginSuccess={(user) => setUtilizator(user)}
-                  />
-                )
-              }
-            />
-
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/signup" element={<SignUpPage />} />
-
-            {/* Rute pentru orice utilizator logat */}
-            <Route
-              path="/facilitati"
-              element={autentificat ? <Facilities /> : <Navigate to="/login" replace />}
-            />
-            <Route
-              path="/rezervare/:idFacilitate"
-              element={autentificat ? <BookingWizard /> : <Navigate to="/login" replace />}
-            />
-            <Route
-              path="/rezervarile-mele"
-              element={autentificat ? <MyBookings /> : <Navigate to="/login" replace />}
-            />
-            <Route
-              path="/cont"
-              element={autentificat ? <ProfilePage /> : <Navigate to="/login" replace />}
-            />
-
-            {/* Rută protejată DOAR pentru Admin */}
-            <Route
-              path="/admin"
-              element={
-                !autentificat ? (
-                  <Navigate to="/login" replace />
-                ) : esteAdmin ? (
-                  <AdminDashboard />
-                ) : (
-                  // Dacă e logat ca 'user' și tastează /admin în URL, îl trimiți înapoi
-                  <Navigate to="/facilitati" replace />
-                )
-              }
-            />
-
-            <Route
-              path="*"
-              element={<Navigate to={autentificat ? "/facilitati" : "/login"} replace />}
-            />
-          </Routes>
-        </main>
-      </div>
+      <AuthProvider>
+        <AppShell />
+      </AuthProvider>
     </BrowserRouter>
   );
 };
