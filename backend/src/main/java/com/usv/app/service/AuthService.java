@@ -198,7 +198,11 @@ public class AuthService {
 
         Map<String, Object> tokenRow = tokens.getFirst();
         LocalDateTime nowLocal = LocalDateTime.now(BUCHAREST_ZONE);
-        LocalDateTime expiresAt = ((Timestamp) tokenRow.get("expires_at")).toLocalDateTime();
+        LocalDateTime expiresAt = switch (tokenRow.get("expires_at")) {
+            case LocalDateTime ldt -> ldt;
+            case Timestamp ts -> ts.toLocalDateTime();
+            case Object obj -> LocalDateTime.parse(obj.toString().replace(" ", "T"));
+        };
 
         if (tokenRow.get("used_at") != null || !expiresAt.isAfter(nowLocal)) {
             throw new ResponseStatusException(
@@ -232,14 +236,19 @@ public class AuthService {
                 .reminderMinutes(User.ReminderMinutesEnum.fromValue(
                         ((Number) row.get("reminder_minutes")).intValue()
                 ))
-                .createdAt(toOffsetDateTime((Timestamp) row.get("created_at")));
+                .createdAt(toOffsetDateTime(row.get("created_at")));
     }
 
-    private OffsetDateTime toOffsetDateTime(Timestamp ts) {
-        if (ts == null) {
-            return null;
-        }
-        return ts.toLocalDateTime().atZone(BUCHAREST_ZONE).toOffsetDateTime();
+    private OffsetDateTime toOffsetDateTime(Object rawValue) {
+        return switch (rawValue) {
+            case null -> null;
+            case LocalDateTime ldt -> ldt.atZone(BUCHAREST_ZONE).toOffsetDateTime();
+            case Timestamp ts -> ts.toLocalDateTime().atZone(BUCHAREST_ZONE).toOffsetDateTime();
+            case OffsetDateTime odt -> odt.atZoneSameInstant(BUCHAREST_ZONE).toOffsetDateTime();
+            default -> LocalDateTime.parse(rawValue.toString().replace(" ", "T"))
+                    .atZone(BUCHAREST_ZONE)
+                    .toOffsetDateTime();
+        };
     }
 
     private String generateResetToken() {

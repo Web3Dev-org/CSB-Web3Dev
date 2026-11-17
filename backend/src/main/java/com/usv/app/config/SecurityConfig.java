@@ -66,14 +66,16 @@ public class SecurityConfig {
                             ))
             )
             .authorizeHttpRequests(auth -> auth
+                    .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
+                    .requestMatchers("/error").permitAll()
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .requestMatchers(
-                            HttpMethod.POST,
-                            "/auth/login",
-                            "/auth/register",
-                            "/auth/forgot-password",
-                            "/auth/reset-password"
-                    ).permitAll()
+                        HttpMethod.POST,
+                        "/auth/login",
+                        "/auth/register",
+                        "/auth/forgot-password",
+                        "/auth/reset-password"
+                        ).permitAll()
                     .requestMatchers(
                             HttpMethod.GET,
                             "/app/settings",

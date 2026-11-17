@@ -371,7 +371,7 @@ public class BookingService {
                 .facilityName(row.get("facility_name").toString())
                 .type(BookingType.fromValue(row.get("type").toString()))
                 .status(BookingStatus.fromValue(row.get("status").toString()))
-                .startAt(toOffsetDateTime((Timestamp) row.get("start_at")))
+                .startAt(toOffsetDateTime(row.get("start_at")))
                 .hoursCount(((Number) row.get("hours_count")).intValue())
                 .totalAmount(new BigDecimal(row.get("total_amount").toString()))
                 .isActiveBooking(((Number) row.get("is_active_booking")).intValue() == 1)
@@ -382,10 +382,10 @@ public class BookingService {
                 .discountPercent(new BigDecimal(row.get("discount_percent").toString()))
                 .discountAmount(new BigDecimal(row.get("discount_amount").toString()))
                 .termsVersionId(((Number) row.get("terms_version_id")).longValue())
-                .approvedAt(toOffsetDateTime((Timestamp) row.get("approved_at")))
-                .cancelledAt(toOffsetDateTime((Timestamp) row.get("cancelled_at")))
+                .approvedAt(toOffsetDateTime(row.get("approved_at")))
+                .cancelledAt(toOffsetDateTime(row.get("cancelled_at")))
                 .cancelReason(row.get("cancel_reason") != null ? row.get("cancel_reason").toString() : null)
-                .createdAt(toOffsetDateTime((Timestamp) row.get("created_at")))
+                .createdAt(toOffsetDateTime(row.get("created_at")))
                 .equipmentList(equipmentList);
     }
 
@@ -424,12 +424,17 @@ public class BookingService {
                 .canCancel(rs.getBoolean("can_cancel"));
     }
 
-    private OffsetDateTime toOffsetDateTime(Timestamp ts) {
-        if (ts == null) {
-            return null;
+    private OffsetDateTime toOffsetDateTime(Object rawValue) {
+        return switch (rawValue) {
+                case null -> null;
+                case LocalDateTime ldt -> ldt.atZone(BUCHAREST_ZONE).toOffsetDateTime();
+                case Timestamp ts -> ts.toLocalDateTime().atZone(BUCHAREST_ZONE).toOffsetDateTime();
+                case OffsetDateTime odt -> odt.atZoneSameInstant(BUCHAREST_ZONE).toOffsetDateTime();
+                default -> LocalDateTime.parse(rawValue.toString().replace(" ", "T"))
+                        .atZone(BUCHAREST_ZONE)
+                        .toOffsetDateTime();
+        };
         }
-        return ts.toLocalDateTime().atZone(BUCHAREST_ZONE).toOffsetDateTime();
-    }
 
     private int getIntSetting(String key, int fallback) {
         List<String> values = jdbcTemplate.queryForList(

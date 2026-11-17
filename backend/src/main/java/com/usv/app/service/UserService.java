@@ -13,6 +13,7 @@ import ro.usv.sport.dto.User;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -125,14 +126,19 @@ public class UserService {
                 .reminderMinutes(User.ReminderMinutesEnum.fromValue(
                         ((Number) row.get("reminder_minutes")).intValue()
                 ))
-                .createdAt(toOffsetDateTime((Timestamp) row.get("created_at")));
+                .createdAt(toOffsetDateTime(row.get("created_at")));
     }
 
-    private OffsetDateTime toOffsetDateTime(Timestamp ts) {
-        if (ts == null) {
-            return null;
-        }
-        return ts.toLocalDateTime().atZone(BUCHAREST_ZONE).toOffsetDateTime();
+    private OffsetDateTime toOffsetDateTime(Object rawValue) {
+        return switch (rawValue) {
+            case null -> null;
+            case LocalDateTime ldt -> ldt.atZone(BUCHAREST_ZONE).toOffsetDateTime();
+            case Timestamp ts -> ts.toLocalDateTime().atZone(BUCHAREST_ZONE).toOffsetDateTime();
+            case OffsetDateTime odt -> odt.atZoneSameInstant(BUCHAREST_ZONE).toOffsetDateTime();
+            default -> LocalDateTime.parse(rawValue.toString().replace(" ", "T"))
+                    .atZone(BUCHAREST_ZONE)
+                    .toOffsetDateTime();
+        };
     }
 
     private String getCurrentUserEmail() {
