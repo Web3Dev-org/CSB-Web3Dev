@@ -1,55 +1,46 @@
 package com.usv.app.controller;
 
-import com.usv.app.dto.LoginRequest;
-import com.usv.app.dto.SignUpRequest;
-import com.usv.app.dto.UserResponse;
-import com.usv.app.entity.User;
-import com.usv.app.repository.UserRepository;
-import jakarta.validation.Valid;
+import com.usv.app.service.AuthService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
+import ro.usv.sport.api.AuthApi;
+import ro.usv.sport.dto.AuthResponse;
+import ro.usv.sport.dto.ForgotPasswordRequest;
+import ro.usv.sport.dto.LoginRequest;
+import ro.usv.sport.dto.RegisterRequest;
+import ro.usv.sport.dto.ResetPasswordRequest;
+
+import java.net.URI;
 
 @RestController
-@RequestMapping("/api/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class AuthController implements AuthApi {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
 
-    @PostMapping("/signup")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody SignUpRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
-            return ResponseEntity.badRequest().body("Email-ul este deja folosit!");
-        }
-        User user = User.builder()
-                .fullName(request.fullName())
-                .email(request.email())
-                .passwordHash(passwordEncoder.encode(request.password()))
-                .build();
-
-        User savedUser = userRepository.save(user);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.fromEntity(savedUser));
+    @Override
+    public ResponseEntity<AuthResponse> login(LoginRequest loginRequest) {
+        return ResponseEntity.ok(authService.login(loginRequest));
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@Valid @RequestBody LoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
-                .orElse(null);
+    @Override
+    public ResponseEntity<AuthResponse> register(RegisterRequest registerRequest) {
+        AuthResponse response = authService.register(registerRequest);
+        return ResponseEntity
+                .created(URI.create("/api/users/me"))
+                .body(response);
+    }
 
-        if (user == null || !passwordEncoder.matches(
-                request.password(),
-                user.getPasswordHash()
-            )) {
+    @Override
+    public ResponseEntity<Void> forgotPassword(ForgotPasswordRequest forgotPasswordRequest) {
+        authService.forgotPassword(forgotPasswordRequest);
+        return ResponseEntity.noContent().build();
+    }
 
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Email sau parolă incorectă!");
-        }
-
-        return ResponseEntity.ok(UserResponse.fromEntity(user));
+    @Override
+    public ResponseEntity<Void> resetPassword(ResetPasswordRequest resetPasswordRequest) {
+        authService.resetPassword(resetPasswordRequest);
+        return ResponseEntity.noContent().build();
     }
 }

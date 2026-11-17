@@ -65,8 +65,8 @@
 
 		<!-- Spring Security Crypto -->
 		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-crypto</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
 		<!-- Bouncy Castle Argon2 -->
@@ -75,11 +75,23 @@
 			<artifactId>bcprov-jdk18on</artifactId>
 			<version>1.82</version>
 		</dependency>
-		
+
 		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.8.4</version>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>0.12.6</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
 		</dependency>
 
 	</dependencies>
@@ -125,21 +137,50 @@
 							<generatorName>spring</generatorName>
 							<apiPackage>ro.usv.sport.api</apiPackage>
 							<modelPackage>ro.usv.sport.dto</modelPackage>
+							<addCompileSourceRoot>false</addCompileSourceRoot>
 							<configOptions>
 								<interfaceOnly>true</interfaceOnly>
 								<useSpringBoot3>true</useSpringBoot3>
 								<useTags>true</useTags>
 								<openApiNullable>false</openApiNullable>
 								<dateLibrary>java8</dateLibrary>
+								<skipDefaultInterface>true</skipDefaultInterface>
+								<documentationProvider>none</documentationProvider>
 							</configOptions>
-							
+
 							<typeMappings>
+								<typeMapping>decimal=BigDecimal</typeMapping>
+								<typeMapping>number+decimal=BigDecimal</typeMapping>
 								<typeMapping>number+double=BigDecimal</typeMapping>
 							</typeMappings>
 
 							<importMappings>
 								<importMapping>BigDecimal=java.math.BigDecimal</importMapping>
 							</importMappings>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<version>3.6.0</version>
+				<executions>
+					<execution>
+						<id>add-openapi-source</id>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>add-source</goal>
+						</goals>
+						<configuration>
+							<sources>
+								<source>${project.build.directory}/generated-sources/openapi/src/main/java</source>
+							</sources>
+							<sourceAttribute>
+								<name>ignore_optional_problems</name>
+								<value>true</value>
+							</sourceAttribute>
 						</configuration>
 					</execution>
 				</executions>
