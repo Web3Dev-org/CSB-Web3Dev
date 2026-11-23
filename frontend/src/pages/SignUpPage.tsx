@@ -1,56 +1,53 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { useNavigate } from "react-router";
+import { apiClient, ApiProblemError, unwrap } from "../api";
+import { useAuth } from "../context/AuthContext";
 
-interface SignUpProps {
-  onSignUpSuccess?: () => void;
-}
-
-export const SignUpPage: React.FC<SignUpProps> = ({ onSignUpSuccess }) => {
-  const [fullName, setFullName] = useState<string>('');
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [confirmPassword, setConfirmPassword] = useState<string>('');
-  const [error, setError] = useState<string>('');
+export const SignUpPage: React.FC = () => {
+  const [fullName, setFullName] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
+  const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
-  const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const navigate = useNavigate();
+  const { setAuth } = useAuth();
+
+  const handleSubmit = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      setError('Parolele introduse nu se potrivesc.');
+      setError("Parolele introduse nu se potrivesc.");
       return;
     }
 
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8080/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fullName,
-          email,
-          password,
+      const authResponse = await unwrap(
+        apiClient.POST("/auth/register", {
+          body: {
+            fullName: fullName.trim(),
+            email: email.trim(),
+            password,
+          },
         }),
-      });
+      );
 
-      if (!response.ok) {
-        const errorMsg = await response.text();
-        throw new Error(errorMsg || 'A apărut o eroare la înregistrare.');
-      }
-
-      if (onSignUpSuccess) {
-        onSignUpSuccess();
-      }
-
-      // Redirecționează către pagina de login după înregistrarea cu succes
-      navigate('/login');
-    } catch (err: any) {
-      setError(err.message || 'Nu s-a putut efectua înregistrarea.');
+      setAuth(authResponse);
+      navigate("/facilitati");
+    } catch (err) {
+      const problem = ApiProblemError.fromUnknown(err);
+      const fieldErrors = Object.values(problem.getFieldErrorMap());
+      setError(
+        fieldErrors[0] ??
+          problem.message ??
+          "Nu s-a putut efectua înregistrarea.",
+      );
     } finally {
       setLoading(false);
     }
@@ -64,7 +61,8 @@ export const SignUpPage: React.FC<SignUpProps> = ({ onSignUpSuccess }) => {
             Creează un cont nou
           </h2>
           <p className="text-xs text-slate-400">
-            Introdu datele tale pentru a solicita accesul la facilitățile campusului.
+            Introdu datele tale pentru a solicita accesul la facilitățile
+            campusului.
           </p>
         </div>
 
@@ -74,7 +72,7 @@ export const SignUpPage: React.FC<SignUpProps> = ({ onSignUpSuccess }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">
               Nume complet
@@ -82,9 +80,11 @@ export const SignUpPage: React.FC<SignUpProps> = ({ onSignUpSuccess }) => {
             <input
               type="text"
               value={fullName}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)}
+              onChange={(e) => setFullName(e.target.value)}
               placeholder="Popescu Ion"
               required
+              minLength={2}
+              maxLength={150}
               disabled={loading}
               className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
             />
@@ -97,8 +97,8 @@ export const SignUpPage: React.FC<SignUpProps> = ({ onSignUpSuccess }) => {
             <input
               type="email"
               value={email}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-              placeholder="student@usv.ro"
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="student@student.usv.ro"
               required
               disabled={loading}
               className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
@@ -112,10 +112,11 @@ export const SignUpPage: React.FC<SignUpProps> = ({ onSignUpSuccess }) => {
             <input
               type="password"
               value={password}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              minLength={6}
+              minLength={8}
+              maxLength={100}
               disabled={loading}
               className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
             />
@@ -128,9 +129,10 @@ export const SignUpPage: React.FC<SignUpProps> = ({ onSignUpSuccess }) => {
             <input
               type="password"
               value={confirmPassword}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
               required
+              minLength={8}
               disabled={loading}
               className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
             />
@@ -139,16 +141,16 @@ export const SignUpPage: React.FC<SignUpProps> = ({ onSignUpSuccess }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-sky-500 hover:bg-sky-600 text-white font-medium py-2 rounded-md transition-colors disabled:opacity-50"
+            className="w-full bg-sky-500 hover:bg-sky-600 text-white font-medium py-2 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
           >
-            {loading ? 'Se creează contul...' : 'Înregistrare'}
+            {loading ? "Se creează contul..." : "Înregistrare"}
           </button>
 
           <div className="text-center mt-4 text-xs text-slate-400">
-            Ai deja un cont?{' '}
+            Ai deja un cont?{" "}
             <button
               type="button"
-              onClick={() => navigate('/login')}
+              onClick={() => navigate("/login")}
               className="text-sky-400 hover:underline font-medium bg-transparent border-none p-0 cursor-pointer"
             >
               Autentifică-te
