@@ -2,65 +2,125 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main", "master", "develop" ]
+    branches: ["main", "master", "develop"]
   pull_request:
-    branches: [ "main", "master", "develop" ]
+    branches: ["main", "master", "develop"]
 
 jobs:
   build-backend:
     name: Build & Test Backend
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_pass
+          MYSQL_DATABASE: rezervari_sport_usv
+          MYSQL_USER: ci_user
+          MYSQL_PASSWORD: ci_pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u ci_user -pci_pass"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Initialize MySQL schema
+        run: |
+          sudo apt-get update && sudo apt-get install -y default-mysql-client
+          mysql -h 127.0.0.1 -P 3306 -u root -pci_root_pass rezervari_sport_usv < db/schema.sql
+
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
           cache: maven
-      - working-directory: ./backend
+          cache-dependency-path: ./backend/pom.xml
+
+      - name: Build and test backend
+        working-directory: ./backend
+        env:
+          DB_URL: 127.0.0.1
+          DB_PORT: 3306
+          DB_NAME: rezervari_sport_usv
+          DB_USERNAME: ci_user
+          DB_PASSWORD: ci_pass
+          JWT_SECRET: ci-test-secret-key-minimum-32-chars-long
+          SPRING_JPA_HIBERNATE_DDL_AUTO: validate
         run: mvn clean package -B
 
   build-frontend:
-    name: Build Frontend
+    name: Lint, Typecheck & Build Frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '26.13'
-          cache: 'npm'
-          cache-dependency-path: './frontend/package-lock.json'
-      - working-directory: ./frontend
+          node-version: "26.13"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
+      - name: Install dependencies
+        working-directory: ./frontend
         run: npm ci
-      - working-directory: ./frontend
+
+      - name: Generate OpenAPI client types
+        working-directory: ./frontend
+        run: npm run generate:api
+
+      - name: Lint
+        working-directory: ./frontend
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: ./frontend
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: ./frontend
         run: npm run build
 
   docker-integration:
-    name: Docker Compose Dry Run
+    name: Docker Compose Integration
     runs-on: ubuntu-latest
     needs: [build-backend, build-frontend]
     steps:
       - uses: actions/checkout@v4
-    
+
       - name: Create .env for CI
         run: |
-          echo "DB_ROOT_PASSWORD=ci_root_pass" >> .env
-          echo "DB_NAME=appdb" >> .env
-          echo "DB_USER=ci_user" >> .env
-          echo "DB_PASSWORD=ci_pass" >> .env
+          cat << 'EOF' > .env
+          DB_ROOT_PASSWORD=ci_root_pass
+          DB_NAME=rezervari_sport_usv
+          DB_USER=ci_user
+          DB_PASSWORD=ci_pass
+          JWT_SECRET=ci-test-secret-key-minimum-32-chars-long
+          EOF
 
-      - name: Start containers
+      - name: Build and start production stack
         run: docker compose -f docker-compose.prod.yaml up -d --build
-        
-      - name: Wait for containers to be healthy
+
+      - name: Verify containers and HTTP endpoints
         run: |
-          sleep 15
-          docker compose ps
-          if [ $(docker ps -a | grep -i exited | wc -l) -gt 0 ]; then
-            echo "One or more containers crashed!"
-            docker compose logs
-            exit 1
-          fi
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:80/ > /dev/null && curl -fsS http://localhost:80/api/facilities > /dev/null; then
+              echo "Frontend and Backend API are up!"
+              docker compose -f docker-compose.prod.yaml ps
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Services failed to become ready in time!"
+          docker compose -f docker-compose.prod.yaml ps -a
+          docker compose -f docker-compose.prod.yaml logs
+          exit 1
 
       - name: Stop and cleanup
-        run: docker compose -f docker-compose.prod.yaml down
+        if: always()
+        run: docker compose -f docker-compose.prod.yaml down -v
