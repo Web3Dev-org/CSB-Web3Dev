@@ -13,7 +13,7 @@ import {
   type PaymentDetail,
   type PaymentInitiateResponse,
 } from "../api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { Options, type BookingOptionsData } from "../components/booking/Options";
 import { Cost } from "../components/booking/Cost";
 import { Terms } from "../components/booking/Terms";
@@ -33,11 +33,13 @@ export const BookingWizardPage: React.FC = () => {
   const { user } = useAuth();
   const { idFacilitate } = useParams<{ idFacilitate: string }>();
   const facilityId = Number(idFacilitate);
+  
+  const isValidFacilityId = Number.isInteger(facilityId) && facilityId > 0;
 
   const [facility, setFacility] = useState<Facility | null>(null);
   const [equipmentCatalog, setEquipmentCatalog] = useState<Equipment[]>([]);
   const [settings, setSettings] = useState<AppSettings | undefined>(undefined);
-  const [loadingInit, setLoadingInit] = useState<boolean>(true);
+  const [loadingInit, setLoadingInit] = useState<boolean>(isValidFacilityId);
   const [initError, setInitError] = useState<string>("");
 
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -54,46 +56,39 @@ export const BookingWizardPage: React.FC = () => {
   >(null);
 
   useEffect(() => {
-    if (!Number.isInteger(facilityId) || facilityId <= 0) {
-      setLoadingInit(false);
+    if (!isValidFacilityId) {
       return;
     }
 
     let cancelled = false;
 
-    const loadWizardData = async () => {
-      setLoadingInit(true);
-      setInitError("");
-
-      try {
-        const [facilities, equipment, appSettings] = await Promise.all([
-          unwrap(apiClient.GET("/facilities")),
-          unwrap(apiClient.GET("/app/equipment")),
-          unwrap(apiClient.GET("/app/settings")),
-        ]);
-
-        if (!cancelled) {
-          const found = facilities.find((f) => f.id === facilityId) ?? null;
-          setFacility(found);
-          setEquipmentCatalog(equipment);
-          setSettings(appSettings);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setInitError(ApiProblemError.fromUnknown(err).message);
-        }
-      } finally {
+    Promise.all([
+      unwrap(apiClient.GET("/facilities")),
+      unwrap(apiClient.GET("/app/equipment")),
+      unwrap(apiClient.GET("/app/settings")),
+    ])
+      .then(([facilities, equipment, appSettings]) => {
+        if (cancelled) return;
+        const found = facilities.find((f) => f.id === facilityId) ?? null;
+        setFacility(found);
+        setEquipmentCatalog(equipment);
+        setSettings(appSettings);
+        setInitError("");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setInitError(ApiProblemError.fromUnknown(err).message);
+      })
+      .finally(() => {
         if (!cancelled) {
           setLoadingInit(false);
         }
-      }
-    };
+      });
 
-    void loadWizardData();
     return () => {
       cancelled = true;
     };
-  }, [facilityId]);
+  }, [facilityId, isValidFacilityId]);
 
   const goToStep = (nextStep: number): void => {
     setCurrentStep(nextStep);

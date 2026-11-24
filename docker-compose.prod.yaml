@@ -12,6 +12,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
@@ -59,5 +60,4 @@ networks:
     driver: bridge
 
 volumes:
-  - mysql_data:/var/lib/mysql
-  - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+  mysql_data:
