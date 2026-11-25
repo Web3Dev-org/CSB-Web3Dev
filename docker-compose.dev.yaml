@@ -8,6 +8,7 @@ services:
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: Europe/Bucharest   # NOW() / CURRENT_TIMESTAMP în ora României
     ports:
       - "3306:3306"
     volumes:
@@ -36,11 +37,11 @@ services:
       DB_USERNAME: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      TZ: Europe/Bucharest
     volumes:
       - ./backend:/app
       - ./docs:/docs:ro   # pom.xml generează codul din ../docs/openapi.yaml
       - maven_cache:/root/.m2
-      - ./docs:/docs:ro
     depends_on:
       db:
         condition: service_healthy

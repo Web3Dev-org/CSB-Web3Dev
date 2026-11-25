@@ -13,6 +13,7 @@ import { FacilitiesPage } from "./pages/FacilitiesPage";
 import { BookingWizardPage } from "./pages/BookingWizardPage";
 import { MyBookingsPage } from "./pages/MyBookingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { PaymentLinkPage } from "./pages/PaymentLinkPage";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -114,6 +115,16 @@ const AppShell: React.FC = () => {
             element={
               <ProtectedRoute>
                 <MyBookingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Plată prin link (metoda link_plata) */}
+          <Route
+            path="/plata/:token"
+            element={
+              <ProtectedRoute>
+                <PaymentLinkPage />
               </ProtectedRoute>
             }
           />

@@ -8,6 +8,7 @@ services:
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: Europe/Bucharest   # NOW() / CURRENT_TIMESTAMP în ora României
     ports:
       - "3306:3306"
     volumes:
@@ -38,6 +39,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      TZ: Europe/Bucharest
     depends_on:
       db:
         condition: service_healthy

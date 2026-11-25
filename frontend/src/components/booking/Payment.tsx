@@ -164,6 +164,13 @@ export const Payment: React.FC<PaymentProps> = ({
         return;
       }
 
+      if (detail.status === "initiata") {
+        setEroare(
+          "Plata nu a fost încă finalizată. Deschide link-ul de plată, finalizează plata, apoi verifică din nou.",
+        );
+        return;
+      }
+
       onCompleted(detail);
     } catch (err) {
       setEroare(ApiProblemError.fromUnknown(err).message);

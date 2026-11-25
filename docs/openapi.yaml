@@ -661,6 +661,70 @@ paths:
         default:
           $ref: '#/components/responses/UnexpectedError'
 
+  /payments/link/{token}:
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentByLink
+      summary: Obține plata asociată unui link de plată
+      description: >
+        Returnează detaliile plății identificate prin token-ul din link-ul generat la inițierea
+        unei plăți `link_plata`. Doar proprietarul rezervării are acces.
+      parameters:
+        - $ref: '#/components/parameters/PaymentLinkTokenPath'
+      responses:
+        '200':
+          description: Detaliile plății
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
+  /payments/link/{token}/pay:
+    post:
+      tags:
+        - Payments
+      operationId: payByLink
+      summary: Finalizează o plată prin link (procesator simulat)
+      description: >
+        Marchează ca `reusita` o plată `link_plata` aflată în starea `initiata`. Înlocuiește
+        confirmarea unui procesator de plăți real până la integrarea unuia.
+      parameters:
+        - $ref: '#/components/parameters/PaymentLinkTokenPath'
+      responses:
+        '200':
+          description: Plata a fost finalizată
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        default:
+          $ref: '#/components/responses/UnexpectedError'
+
   /bookings/{id}/invoice:
     get:
       tags:
@@ -946,6 +1010,16 @@ components:
         Token JWT obținut la `/auth/login` sau `/auth/register`, trimis în header-ul `Authorization: Bearer <token>`.
 
   parameters:
+    PaymentLinkTokenPath:
+      name: token
+      in: path
+      required: true
+      description: Token-ul unic (UUID) din link-ul de plată
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+
     ResourceIdPath:
       name: id
       in: path
