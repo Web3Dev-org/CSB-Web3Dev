@@ -1,15 +1,16 @@
-FROM node:26.13-alpine AS builder
+FROM docker.io/library/node:26.13-alpine AS builder
 
-WORKDIR /app
+WORKDIR /workspace/frontend
 
-COPY package.json package-lock.json* ./
+COPY docs/openapi.yaml /workspace/docs/openapi.yaml
+COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
 
-COPY . .
+COPY frontend/ .
 RUN npm run build
 
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf 
+FROM docker.io/library/nginx:alpine
+COPY --from=builder /workspace/frontend/dist /usr/share/nginx/html
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

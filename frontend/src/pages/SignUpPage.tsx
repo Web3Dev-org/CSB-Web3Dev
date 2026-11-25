@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { apiClient, ApiProblemError, unwrap } from "../api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 export const SignUpPage: React.FC = () => {
   const [fullName, setFullName] = useState<string>("");

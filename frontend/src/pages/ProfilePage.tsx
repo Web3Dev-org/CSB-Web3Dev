@@ -1,24 +1,40 @@
-import React, { useEffect, useState } from "react";
+import { useState, type FC, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { apiClient, ApiProblemError, unwrap, type User } from "../api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 type ReminderOption = User["reminderMinutes"];
 
-export const ProfilePage: React.FC = () => {
-  const navigate = useNavigate();
+export const ProfilePage: FC = () => {
   const { user, updateUserState } = useAuth();
 
-  const [fullName, setFullName] = useState<string>(user?.fullName ?? "");
-  const [phone, setPhone] = useState<string>(user?.phone ?? "");
-  const [notifyInApp, setNotifyInApp] = useState<boolean>(
-    user?.notifyInApp ?? true,
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <ProfileForm
+      key={user.id}
+      user={user}
+      updateUserState={updateUserState}
+    />
   );
-  const [notifyEmail, setNotifyEmail] = useState<boolean>(
-    user?.notifyEmail ?? true,
-  );
+};
+
+interface ProfileFormProps {
+  user: User;
+  updateUserState: (updated: User) => void;
+}
+
+const ProfileForm: FC<ProfileFormProps> = ({ user, updateUserState }) => {
+  const navigate = useNavigate();
+
+  const [fullName, setFullName] = useState<string>(user.fullName);
+  const [phone, setPhone] = useState<string>(user.phone ?? "");
+  const [notifyInApp, setNotifyInApp] = useState<boolean>(user.notifyInApp);
+  const [notifyEmail, setNotifyEmail] = useState<boolean>(user.notifyEmail);
   const [reminderMinutes, setReminderMinutes] = useState<ReminderOption>(
-    user?.reminderMinutes ?? 60,
+    user.reminderMinutes,
   );
 
   // Stări pentru resetare parolă conform contractului (/auth/forgot-password + /auth/reset-password)
@@ -31,17 +47,8 @@ export const ProfilePage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (!user) return;
-    setFullName(user.fullName);
-    setPhone(user.phone ?? "");
-    setNotifyInApp(user.notifyInApp);
-    setNotifyEmail(user.notifyEmail);
-    setReminderMinutes(user.reminderMinutes);
-  }, [user]);
-
   const handleUpdateProfile = async (
-    e: React.FormEvent<HTMLFormElement>,
+    e: FormEvent<HTMLFormElement>,
   ): Promise<void> => {
     e.preventDefault();
     setErrorMessage("");
@@ -71,7 +78,6 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handleRequestPasswordToken = async (): Promise<void> => {
-    if (!user) return;
     setErrorMessage("");
     setInfoMessage("");
     setLoading(true);
@@ -94,7 +100,7 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handleResetPassword = async (
-    e: React.FormEvent<HTMLFormElement>,
+    e: FormEvent<HTMLFormElement>,
   ): Promise<void> => {
     e.preventDefault();
     setErrorMessage("");
@@ -126,10 +132,6 @@ export const ProfilePage: React.FC = () => {
       setLoading(false);
     }
   };
-
-  if (!user) {
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8">

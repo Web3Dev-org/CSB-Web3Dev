@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import { Bell, CheckCheck } from "lucide-react";
 import {
@@ -21,12 +21,10 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const visibleNotifications = user ? notifications : [];
 
   const fetchNotifications = useCallback(async () => {
-    if (!user) {
-      setNotifications([]);
-      return;
-    }
+    if (!user) return;
     try {
       const data = await unwrap(
         apiClient.GET("/notifications", {
@@ -40,21 +38,27 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   }, [user]);
 
   useEffect(() => {
-    void fetchNotifications();
-  }, [fetchNotifications]);
+    if (!user) return;
+    let cancelled = false;
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setDropdownOpen(false);
-      }
+    unwrap(
+      apiClient.GET("/notifications", {
+        params: { query: { unreadOnly: false } },
+      }),
+    )
+      .then((data) => {
+        if (!cancelled) {
+          setNotifications(data);
+        }
+      })
+      .catch(() => {
+        // Erorile 401 sunt gestionate global de authMiddleware
+      });
+
+    return () => {
+      cancelled = true;
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [user]);
 
   const handleMarkAsRead = async (notificationId: number): Promise<void> => {
     try {
@@ -143,12 +147,12 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                 </div>
 
                 <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/70">
-                  {notifications.length === 0 ? (
+                  {visibleNotifications.length === 0 ? (
                     <p className="p-4 text-xs text-slate-400 text-center">
                       Nu ai notificări momentan.
                     </p>
                   ) : (
-                    notifications.map((notif) => (
+                    visibleNotifications.map((notif) => (
                       <div
                         key={notif.id}
                         className={`p-3.5 text-xs space-y-1.5 transition-colors ${

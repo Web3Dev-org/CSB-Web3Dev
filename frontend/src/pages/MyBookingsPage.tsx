@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Calendar, Clock, FileText, Info, Plus, XCircle } from "lucide-react";
 import {
@@ -61,38 +61,43 @@ export const MyBookingsPage: React.FC = () => {
     useState<BookingSummary | null>(null);
   const [cancelReason, setCancelReason] = useState<string>("");
 
-  const fetchRezervari = useCallback(async () => {
-    try {
-      setLoading(true);
-      setEroare("");
-
-      const [pageData, appSettings] = await Promise.all([
-        unwrap(
-          apiClient.GET("/bookings", {
-            params: {
-              query: {
-                sort: "startAt,desc",
-                page: 0,
-                size: 100,
-              },
-            },
-          }),
-        ),
-        unwrap(apiClient.GET("/app/settings")),
-      ]);
-
-      setRezervari(pageData.content);
-      setSettings(appSettings);
-    } catch (err) {
-      setEroare(ApiProblemError.fromUnknown(err).message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void fetchRezervari();
-  }, [fetchRezervari]);
+    let cancelled = false;
+
+    Promise.all([
+      unwrap(
+        apiClient.GET("/bookings", {
+          params: {
+            query: {
+              sort: "startAt,desc",
+              page: 0,
+              size: 100,
+            },
+          },
+        }),
+      ),
+      unwrap(apiClient.GET("/app/settings")),
+    ])
+      .then(([pageData, appSettings]) => {
+        if (cancelled) return;
+        setRezervari(pageData.content);
+        setSettings(appSettings);
+        setEroare("");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setEroare(ApiProblemError.fromUnknown(err).message);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleDownloadInvoice = async (bookingId: number): Promise<void> => {
     setInfoBanner("");
