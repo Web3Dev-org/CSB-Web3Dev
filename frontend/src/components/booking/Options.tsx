@@ -65,7 +65,8 @@ function getBucharestDays(horizonDays: number): DayColumn[] {
     month: "short",
   });
 
-  for (let i = 0; i < horizonDays; i++) {
+  // Ziua curentă nu se rezervă: calendarul începe de mâine (aceeași regulă ca în backend).
+  for (let i = 1; i <= horizonDays; i++) {
     const target = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
     days.push({
       isoDate: isoFormatter.format(target),

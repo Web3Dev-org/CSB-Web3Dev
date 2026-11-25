@@ -135,20 +135,7 @@ public class BookingService {
 
         LocalDateTime nowLocal = LocalDateTime.now(BUCHAREST_ZONE);
         LocalDateTime startLocal = startZoned.toLocalDateTime();
-        if (!startLocal.isAfter(nowLocal)) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Rezervarea trebuie să înceapă în viitor."
-            );
-        }
-
-        int horizonDays = getIntSetting("booking_horizon_days", 7);
-        if (startLocal.isAfter(nowLocal.plusDays(horizonDays))) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Rezervările pot fi făcute cu cel mult " + horizonDays + " zile în avans."
-            );
-        }
+        BookingWindow.validate(startLocal, nowLocal, getIntSetting("booking_horizon_days", 7));
 
         // 2. Verificare statut și reducere utilizator
         Map<String, Object> userRow = jdbcTemplate.queryForList(
