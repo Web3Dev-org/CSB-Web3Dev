@@ -38,6 +38,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
     volumes:
       - ./backend:/app
+      - ./docs:/docs:ro   # pom.xml generează codul din ../docs/openapi.yaml
       - maven_cache:/root/.m2
       - ./docs:/docs:ro
     depends_on:
