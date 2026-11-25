@@ -4,6 +4,7 @@ import type { AuthResponse, User } from "../api";
 export interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   isLoading: boolean;
   setAuth: (auth: AuthResponse) => void;
   updateUserState: (updated: User) => void;

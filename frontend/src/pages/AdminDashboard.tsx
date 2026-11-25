@@ -1,65 +1,14 @@
-import React, { useMemo, useState } from 'react';
-import type { components } from '../api/schema';
+import React, { useEffect, useMemo, useState } from "react";
+import { apiClient, unwrap } from "../api";
+import type { components } from "../api/schema";
 
 // Tipuri extrase direct din schema OpenAPI generată
-type AdminBookingRequest = components['schemas']['AdminBookingRequest'];
-type Equipment = components['schemas']['Equipment'];
-type AppSettings = components['schemas']['AppSettings'];
-type UserStatus = components['schemas']['UserStatus'];
+type AdminBookingRequest = components["schemas"]["AdminBookingRequest"];
+type Equipment = components["schemas"]["Equipment"];
+type AppSettings = components["schemas"]["AppSettings"];
+type UserStatus = components["schemas"]["UserStatus"];
 
-type PaymentFilter = 'ALL' | 'PAID' | 'UNPAID';
-
-// Date inițiale de test (înlocuiește-le cu apelurile API: GET /admin/bookings, GET /app/equipment etc.)
-const INITIAL_BOOKINGS: AdminBookingRequest[] = [
-  {
-    bookingId: 101,
-    client: 'Andrei Pop',
-    facility: 'Sala de fitness',
-    startAt: '2026-11-15T10:00:00+02:00',
-    hoursCount: 1,
-    totalAmount: 30,
-    status: 'in_asteptare',
-    paymentState: 'Plătit',
-  },
-  {
-    bookingId: 102,
-    client: 'Maria Ionescu',
-    facility: 'Bază sportivă',
-    startAt: '2026-11-15T17:00:00+02:00',
-    hoursCount: 2,
-    totalAmount: 100,
-    status: 'in_asteptare',
-    paymentState: 'Neplătit',
-  },
-  {
-    bookingId: 103,
-    client: 'Radu Lupu',
-    facility: 'Sala Polivalentă',
-    startAt: '2026-11-19T19:00:00+02:00',
-    hoursCount: 1,
-    totalAmount: 80,
-    status: 'in_asteptare',
-    paymentState: 'Plătit',
-  },
-];
-
-const INITIAL_EQUIPMENT: Equipment[] = [
-  { id: 1, name: 'Mingi', price: 10, stock: null },
-  { id: 2, name: 'Veste', price: 5, stock: null },
-  { id: 3, name: 'Plasă volei', price: 15, stock: null },
-];
-
-const INITIAL_SETTINGS: AppSettings = {
-  cancellationHours: 12,
-  arrivalMinutes: 10,
-  bookingHorizonDays: 7,
-  currency: 'RON',
-};
-
-const INITIAL_DISCOUNTS: UserStatus[] = [
-  { code: 'student', label: 'Student', discountPercent: 50 },
-  { code: 'cadru', label: 'Cadru didactic', discountPercent: 25 },
-];
+type PaymentFilter = "ALL" | "PAID" | "UNPAID";
 
 // Formatare interval orar prietenoasă (ex: "Mâine 10:00", "Joi 19:00")
 function formatBookingSlot(isoDate: string): string {
@@ -68,9 +17,9 @@ function formatBookingSlot(isoDate: string): string {
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
 
-  const timeStr = date.toLocaleTimeString('ro-RO', {
-    hour: '2-digit',
-    minute: '2-digit',
+  const timeStr = date.toLocaleTimeString("ro-RO", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 
   if (date.toDateString() === now.toDateString()) {
@@ -80,51 +29,167 @@ function formatBookingSlot(isoDate: string): string {
     return `Mâine ${timeStr}`;
   }
 
-  const weekday = date.toLocaleDateString('ro-RO', { weekday: 'long' });
+  const weekday = date.toLocaleDateString("ro-RO", { weekday: "long" });
   const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
   return `${capitalizedWeekday} ${timeStr}`;
 }
 
 export const AdminDashboard: React.FC = () => {
-  const [bookings, setBookings] = useState<AdminBookingRequest[]>(INITIAL_BOOKINGS);
-  const [activeFilter, setActiveFilter] = useState<PaymentFilter>('ALL');
-  const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [bookings, setBookings] = useState<AdminBookingRequest[]>([]);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [discounts, setDiscounts] = useState<UserStatus[]>([]);
+
+  const [activeFilter, setActiveFilter] = useState<PaymentFilter>("ALL");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [processingId, setProcessingId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      unwrap(apiClient.GET("/admin/bookings")),
+      unwrap(apiClient.GET("/app/equipment")),
+      unwrap(apiClient.GET("/app/settings")),
+      unwrap(apiClient.GET("/app/statuses")),
+    ])
+      .then(([bookingsData, equipmentData, settingsData, statusesData]) => {
+        if (!cancelled) {
+          setBookings(bookingsData);
+          setEquipment(equipmentData);
+          setSettings(settingsData);
+          setDiscounts(statusesData);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Nu s-au putut încărca datele panoului de administrare.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Statistici calculate dinamic pentru cele 3 carduri de sus
   const stats = useMemo(() => {
     const total = bookings.length;
-    const paid = bookings.filter((b) => b.paymentState === 'Plătit').length;
-    const unpaid = bookings.filter((b) => b.paymentState === 'Neplătit').length;
+    const paid = bookings.filter((b) => b.paymentState === "Plătit").length;
+    const unpaid = bookings.filter((b) => b.paymentState === "Neplătit").length;
     return { total, paid, unpaid };
   }, [bookings]);
 
   // Lista filtrată după tab-ul selectat
   const filteredBookings = useMemo(() => {
-    if (activeFilter === 'PAID') {
-      return bookings.filter((b) => b.paymentState === 'Plătit');
+    if (activeFilter === "PAID") {
+      return bookings.filter((b) => b.paymentState === "Plătit");
     }
-    if (activeFilter === 'UNPAID') {
-      return bookings.filter((b) => b.paymentState === 'Neplătit');
+    if (activeFilter === "UNPAID") {
+      return bookings.filter((b) => b.paymentState === "Neplătit");
     }
     return bookings;
   }, [bookings, activeFilter]);
 
-  const handleApprove = async (bookingId: number) => {
-    setApprovingId(bookingId);
+  const handleDecision = async (
+    bookingId: number,
+    action: "approve" | "reject",
+    reason?: string,
+  ) => {
+    setProcessingId(bookingId);
+    setError(null);
     try {
-      // Aici vei apela endpoint-ul din openapi-fetch:
-      // await api.POST('/admin/bookings/{id}/approve', { params: { path: { id: bookingId } } });
+      const updated =
+        action === "approve"
+          ? await unwrap(
+              apiClient.POST("/admin/bookings/{id}/approve", {
+                params: { path: { id: bookingId } },
+              }),
+            )
+          : await unwrap(
+              apiClient.POST("/admin/bookings/{id}/reject", {
+                params: { path: { id: bookingId } },
+                ...(reason ? { body: { reason } } : {}),
+              }),
+            );
 
-      // Simulare răspuns API
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Re-randare imediată a listei cu starea actualizată
       setBookings((prev) =>
         prev.map((item) =>
-          item.bookingId === bookingId ? { ...item, status: 'aprobata' } : item
-        )
+          item.bookingId === updated.id
+            ? { ...item, status: updated.status }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Eroare la procesarea cererii de rezervare.",
       );
     } finally {
-      setApprovingId(null);
+      setProcessingId(null);
     }
+  };
+
+  const renderStatusOrActions = (booking: AdminBookingRequest) => {
+    if (booking.status === "aprobata") {
+      return (
+        <span className="inline-block rounded-xl border border-emerald-700/50 bg-emerald-950/40 px-5 py-1.5 text-xs font-semibold text-emerald-400">
+          Aprobată
+        </span>
+      );
+    }
+
+    if (booking.status === "respinsa") {
+      return (
+        <span className="inline-block rounded-xl border border-rose-700/50 bg-rose-950/40 px-5 py-1.5 text-xs font-semibold text-rose-400">
+          Respinsă
+        </span>
+      );
+    }
+
+    if (booking.status !== "in_asteptare") {
+      return (
+        <span className="inline-block rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-1.5 text-xs font-semibold text-slate-300">
+          {booking.status === "anulata" ? "Anulată" : "Finalizată"}
+        </span>
+      );
+    }
+
+    const isProcessing = processingId === booking.bookingId;
+
+    return (
+      <div className="inline-flex items-center justify-end gap-2">
+        <button
+          type="button"
+          disabled={isProcessing}
+          onClick={() => void handleDecision(booking.bookingId, "approve")}
+          className="rounded-xl border border-[#4a80bd] bg-transparent px-5 py-1.5 text-xs font-semibold text-[#79b4f5] transition hover:bg-[#64a3e8] hover:text-[#0c1624] disabled:opacity-50"
+        >
+          {isProcessing ? "Se procesează..." : "Aprobă"}
+        </button>
+
+        <button
+          type="button"
+          disabled={isProcessing}
+          onClick={() => void handleDecision(booking.bookingId, "reject")}
+          className="rounded-xl border border-rose-700/70 bg-transparent px-5 py-1.5 text-xs font-semibold text-rose-400 transition hover:bg-rose-600 hover:text-white disabled:opacity-50"
+        >
+          Respinge
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -135,21 +200,39 @@ export const AdminDashboard: React.FC = () => {
           Panou control · urmărire cereri (Administrator)
         </h1>
 
+        {error && (
+          <div className="rounded-xl border border-rose-700/60 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">
+            {error}
+          </div>
+        )}
+
         {/* KPI Cards Row */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-700/60 bg-[#162235] py-5 shadow-sm">
-            <span className="text-3xl font-extrabold text-white">{stats.total}</span>
-            <span className="mt-1 text-xs font-medium text-slate-400">Cereri azi</span>
+            <span className="text-3xl font-extrabold text-white">
+              {stats.total}
+            </span>
+            <span className="mt-1 text-xs font-medium text-slate-400">
+              Total cereri
+            </span>
           </div>
 
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-700/60 bg-[#162235] py-5 shadow-sm">
-            <span className="text-3xl font-extrabold text-white">{stats.paid}</span>
-            <span className="mt-1 text-xs font-medium text-slate-400">Plăți efectuate</span>
+            <span className="text-3xl font-extrabold text-white">
+              {stats.paid}
+            </span>
+            <span className="mt-1 text-xs font-medium text-slate-400">
+              Plăți efectuate
+            </span>
           </div>
 
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-700/60 bg-[#162235] py-5 shadow-sm">
-            <span className="text-3xl font-extrabold text-white">{stats.unpaid}</span>
-            <span className="mt-1 text-xs font-medium text-slate-400">Plăți neachitate</span>
+            <span className="text-3xl font-extrabold text-white">
+              {stats.unpaid}
+            </span>
+            <span className="mt-1 text-xs font-medium text-slate-400">
+              Plăți neachitate
+            </span>
           </div>
         </section>
 
@@ -159,11 +242,11 @@ export const AdminDashboard: React.FC = () => {
           <div className="grid grid-cols-3 gap-3 mb-5">
             <button
               type="button"
-              onClick={() => setActiveFilter('ALL')}
+              onClick={() => setActiveFilter("ALL")}
               className={`rounded-xl py-2.5 text-sm font-semibold transition ${
-                activeFilter === 'ALL'
-                  ? 'bg-[#64a3e8] text-[#0c1624] shadow'
-                  : 'bg-[#0f1826] text-slate-300 hover:bg-[#131f30]'
+                activeFilter === "ALL"
+                  ? "bg-[#64a3e8] text-[#0c1624] shadow"
+                  : "bg-[#0f1826] text-slate-300 hover:bg-[#131f30]"
               }`}
             >
               Toate
@@ -171,11 +254,11 @@ export const AdminDashboard: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setActiveFilter('PAID')}
+              onClick={() => setActiveFilter("PAID")}
               className={`rounded-xl py-2.5 text-sm font-semibold transition ${
-                activeFilter === 'PAID'
-                  ? 'bg-[#64a3e8] text-[#0c1624] shadow'
-                  : 'bg-[#0f1826] text-slate-300 hover:bg-[#131f30]'
+                activeFilter === "PAID"
+                  ? "bg-[#64a3e8] text-[#0c1624] shadow"
+                  : "bg-[#0f1826] text-slate-300 hover:bg-[#131f30]"
               }`}
             >
               Plătite
@@ -183,11 +266,11 @@ export const AdminDashboard: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setActiveFilter('UNPAID')}
+              onClick={() => setActiveFilter("UNPAID")}
               className={`rounded-xl py-2.5 text-sm font-semibold transition ${
-                activeFilter === 'UNPAID'
-                  ? 'bg-[#64a3e8] text-[#0c1624] shadow'
-                  : 'bg-[#0f1826] text-slate-300 hover:bg-[#131f30]'
+                activeFilter === "UNPAID"
+                  ? "bg-[#64a3e8] text-[#0c1624] shadow"
+                  : "bg-[#0f1826] text-slate-300 hover:bg-[#131f30]"
               }`}
             >
               Neplătite
@@ -209,7 +292,13 @@ export const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80 text-sm">
-                {filteredBookings.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                      Se încarcă cererile de rezervare...
+                    </td>
+                  </tr>
+                ) : filteredBookings.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-slate-400">
                       Nu există cereri pentru filtrul selectat.
@@ -217,8 +306,7 @@ export const AdminDashboard: React.FC = () => {
                   </tr>
                 ) : (
                   filteredBookings.map((booking) => {
-                    const isPaid = booking.paymentState === 'Plătit';
-                    const isApproved = booking.status === 'aprobata';
+                    const isPaid = booking.paymentState === "Plătit";
 
                     return (
                       <tr
@@ -228,7 +316,9 @@ export const AdminDashboard: React.FC = () => {
                         <td className="py-4 pl-2 font-medium text-slate-100">
                           {booking.client}
                         </td>
-                        <td className="py-4 text-slate-200">{booking.facility}</td>
+                        <td className="py-4 text-slate-200">
+                          {booking.facility}
+                        </td>
                         <td className="py-4 text-slate-400">
                           {formatBookingSlot(booking.startAt)}
                         </td>
@@ -236,28 +326,15 @@ export const AdminDashboard: React.FC = () => {
                           <span
                             className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold ${
                               isPaid
-                                ? 'bg-emerald-950/90 text-emerald-400 border border-emerald-700/40'
-                                : 'bg-amber-950/90 text-amber-400 border border-amber-700/40'
+                                ? "bg-emerald-950/90 text-emerald-400 border border-emerald-700/40"
+                                : "bg-amber-950/90 text-amber-400 border border-amber-700/40"
                             }`}
                           >
                             {booking.paymentState}
                           </span>
                         </td>
                         <td className="py-4 pr-2 text-right">
-                          {isApproved ? (
-                            <span className="inline-block rounded-xl border border-emerald-700/50 bg-emerald-950/40 px-5 py-1.5 text-xs font-semibold text-emerald-400">
-                              Aprobată
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={approvingId === booking.bookingId}
-                              onClick={() => handleApprove(booking.bookingId)}
-                              className="rounded-xl border border-[#4a80bd] bg-transparent px-6 py-1.5 text-xs font-semibold text-[#79b4f5] transition hover:bg-[#64a3e8] hover:text-[#0c1624] disabled:opacity-50"
-                            >
-                              {approvingId === booking.bookingId ? 'Se aprobă...' : 'Aprobă'}
-                            </button>
-                          )}
+                          {renderStatusOrActions(booking)}
                         </td>
                       </tr>
                     );
@@ -275,24 +352,32 @@ export const AdminDashboard: React.FC = () => {
           </h2>
 
           <ul className="divide-y divide-slate-800/80 text-sm">
-            {INITIAL_EQUIPMENT.map((item) => (
+            {equipment.map((item) => (
               <li
                 key={item.id}
                 className="flex items-center justify-between py-2.5 text-slate-300"
               >
                 <span>{item.name}</span>
-                <span className="font-bold text-white">{item.price} lei</span>
+                <span className="font-bold text-white">
+                  {item.price}{" "}
+                  {settings?.currency === "RON"
+                    ? "lei"
+                    : (settings?.currency ?? "lei")}
+                </span>
               </li>
             ))}
           </ul>
 
-          <p className="mt-3 text-xs text-slate-400">
-            Regulă anulare: {INITIAL_SETTINGS.cancellationHours} ore · Reduceri:{' '}
-            {INITIAL_DISCOUNTS.map(
-              (d) => `${d.label} ${d.discountPercent}%`
-            ).join(', ')}
-            .
-          </p>
+          {settings && (
+            <p className="mt-3 text-xs text-slate-400">
+              Regulă anulare: {settings.cancellationHours} ore · Reduceri:{" "}
+              {discounts
+                .filter((d) => d.discountPercent > 0)
+                .map((d) => `${d.label} ${d.discountPercent}%`)
+                .join(", ")}
+              .
+            </p>
+          )}
         </section>
       </main>
     </div>
