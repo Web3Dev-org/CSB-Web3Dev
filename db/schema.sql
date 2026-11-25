@@ -12,6 +12,10 @@
 --     COLLATE utf8mb4_unicode_ci;
 -- USE rezervari_sport_usv;
 
+-- Clientul mysql din container folosește implicit latin1; fără linia de mai jos
+-- diacriticele din datele inițiale și din view-uri sunt salvate stricat.
+SET NAMES utf8mb4;
+
 -- ---------------------------------------------------------------------
 -- 1. STATUTURI UTILIZATOR + REDUCERI
 -- ---------------------------------------------------------------------
