@@ -40,7 +40,6 @@ services:
       - ./backend:/app
       - ./docs:/docs:ro   # pom.xml generează codul din ../docs/openapi.yaml
       - maven_cache:/root/.m2
-      - ./docs:/docs:ro
     depends_on:
       db:
         condition: service_healthy
