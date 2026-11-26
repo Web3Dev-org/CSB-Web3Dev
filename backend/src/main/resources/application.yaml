@@ -10,6 +10,11 @@ app:
   payments:
     # Baza URL-ului pentru plata prin link (procesator simulat; nu există încă un gateway real)
     link-base-url: ${PAYMENT_LINK_BASE_URL:http://localhost:5173/plata}
+  notifications:
+    reminders:
+      # Memento-uri in-app trimise cu users.reminder_minutes înainte de începerea rezervării
+      enabled: ${REMINDERS_ENABLED:true}
+      interval-ms: ${REMINDERS_INTERVAL_MS:60000}
 
 spring:
   application:
