@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import ro.usv.sport.dto.NotificationType;
 import ro.usv.sport.dto.PaymentDetail;
 import ro.usv.sport.dto.PaymentInitiateRequest;
 import ro.usv.sport.dto.PaymentInitiateResponse;
@@ -39,6 +40,7 @@ public class PaymentService {
 
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
     private final AppService appService;
 
     @Value("${app.payments.link-base-url}")
@@ -75,7 +77,9 @@ public class PaymentService {
         }
 
         long paymentId = insertPayment(request.getBookingId(), (BigDecimal) booking.get("total_amount"), method, now);
-        return toInitiateResponse(getPaymentRow(paymentId));
+        PaymentDetail created = getPaymentRow(paymentId);
+        notifyIfPaid(created);
+        return toInitiateResponse(created);
     }
 
     @Transactional(readOnly = true)
@@ -112,7 +116,17 @@ public class PaymentService {
         jdbcTemplate.update(
                 "UPDATE payments SET status = 'reusita', paid_at = ?, provider_ref = ? WHERE id = ?",
                 Timestamp.valueOf(now), "SIM-" + UUID.randomUUID(), paymentId);
-        return getPaymentRow(paymentId);
+        PaymentDetail paid = getPaymentRow(paymentId);
+        notifyIfPaid(paid);
+        return paid;
+    }
+
+    private void notifyIfPaid(PaymentDetail payment) {
+        if (payment.getStatus() == PaymentStatus.REUSITA) {
+            notificationService.notifyBookingOwner(payment.getBookingId(), NotificationType.PLATA,
+                    NotificationMessages.paymentSucceeded(
+                            payment.getBookingId(), payment.getAmount(), payment.getCurrency()));
+        }
     }
 
     /** Caută o plată după condiție și verifică faptul că aparține utilizatorului curent. */

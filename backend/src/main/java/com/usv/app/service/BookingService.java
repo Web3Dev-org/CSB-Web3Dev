@@ -20,6 +20,7 @@ import ro.usv.sport.dto.BookingRequest;
 import ro.usv.sport.dto.BookingStatus;
 import ro.usv.sport.dto.BookingSummary;
 import ro.usv.sport.dto.BookingType;
+import ro.usv.sport.dto.NotificationType;
 import ro.usv.sport.dto.AdminBookingRequest;
 
 import java.math.BigDecimal;
@@ -47,6 +48,7 @@ public class BookingService {
 
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     private record EquipmentLine(Long equipmentId, String name, int quantity, BigDecimal unitPrice) {
     }
@@ -310,7 +312,10 @@ public class BookingService {
                     bookingId, line.equipmentId(), line.quantity(), line.unitPrice());
         }
 
-        return getMyBookingById(bookingId);
+        BookingDetail created = getMyBookingById(bookingId);
+        notificationService.notifyBookingOwner(bookingId, NotificationType.CONFIRMARE,
+                NotificationMessages.bookingCreated(bookingId, created.getFacilityName(), created.getStartAt()));
+        return created;
     }
 
     @Transactional(readOnly = true)
@@ -394,6 +399,8 @@ public class BookingService {
                 "UPDATE bookings SET status = 'anulata', cancelled_at = ?, cancel_reason = ? WHERE id = ?",
                 nowTs, reason, id);
 
+        notificationService.notifyBookingOwner(id, NotificationType.ANULARE,
+                NotificationMessages.bookingCancelled(id, existing.getFacilityName(), existing.getStartAt()));
         return getMyBookingById(id);
     }
 
@@ -449,7 +456,10 @@ public class BookingService {
                 "UPDATE bookings SET status = 'aprobata', approved_by = ?, approved_at = ? WHERE id = ?",
                 adminId, nowTs, id);
 
-        return getBookingDetailById(id);
+        BookingDetail approved = getBookingDetailById(id);
+        notificationService.notifyBookingOwner(id, NotificationType.CONFIRMARE,
+                NotificationMessages.bookingApproved(id, approved.getFacilityName(), approved.getStartAt()));
+        return approved;
     }
 
     @Transactional
@@ -471,7 +481,10 @@ public class BookingService {
         // trigger-ul MySQL)
         jdbcTemplate.update("DELETE FROM booking_slots WHERE booking_id = ?", id);
 
-        return getBookingDetailById(id);
+        BookingDetail rejected = getBookingDetailById(id);
+        notificationService.notifyBookingOwner(id, NotificationType.ANULARE,
+                NotificationMessages.bookingRejected(id, rejected.getFacilityName(), rejected.getStartAt(), reason));
+        return rejected;
     }
 
     private String getBookingStatusOrThrow(Long id) {

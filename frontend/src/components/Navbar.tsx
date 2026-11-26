@@ -9,6 +9,8 @@ import {
   type User,
 } from "../api";
 
+const NOTIFICATIONS_REFRESH_MS = 60_000;
+
 interface NavbarProps {
   user: User | null;
   onLogout?: () => void;
@@ -59,6 +61,16 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
       cancelled = true;
     };
   }, [user]);
+
+  // Notificările (ex. memento-urile) sunt generate de server în fundal:
+  // reîmprospătăm periodic ca numărul de necitite să fie la zi.
+  useEffect(() => {
+    if (!user) return;
+    const intervalId = window.setInterval(() => {
+      void fetchNotifications();
+    }, NOTIFICATIONS_REFRESH_MS);
+    return () => window.clearInterval(intervalId);
+  }, [user, fetchNotifications]);
 
   const handleMarkAsRead = async (notificationId: number): Promise<void> => {
     try {
