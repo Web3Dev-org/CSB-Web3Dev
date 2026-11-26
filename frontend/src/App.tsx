@@ -14,6 +14,7 @@ import { BookingWizardPage } from "./pages/BookingWizardPage";
 import { MyBookingsPage } from "./pages/MyBookingsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PaymentLinkPage } from "./pages/PaymentLinkPage";
+import { AdminDashboard } from "./pages/AdminDashboard";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -36,8 +37,19 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   return <>{children}</>;
 };
 
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAdmin } = useAuth();
+
+  return (
+    <ProtectedRoute>
+      {isAdmin ? children : <Navigate to="/facilitati" replace />}
+    </ProtectedRoute>
+  );
+};
+
 const AppShell: React.FC = () => {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isAdmin, isLoading, logout } = useAuth();
+  const defaultRoute = isAdmin ? "/admin" : "/facilitati";
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -50,7 +62,7 @@ const AppShell: React.FC = () => {
             path="/"
             element={
               isLoading ? null : isAuthenticated ? (
-                <Navigate to="/facilitati" replace />
+                <Navigate to={defaultRoute} replace />
               ) : (
                 <LandingPage />
               )
@@ -62,10 +74,20 @@ const AppShell: React.FC = () => {
             path="/login"
             element={
               isAuthenticated ? (
-                <Navigate to="/facilitati" replace />
+                <Navigate to={defaultRoute} replace />
               ) : (
                 <LoginPage />
               )
+            }
+          />
+
+          {/* Panou administrator */}
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
             }
           />
 
@@ -74,16 +96,13 @@ const AppShell: React.FC = () => {
             path="/signup"
             element={
               isAuthenticated ? (
-                <Navigate to="/facilitati" replace />
+                <Navigate to={defaultRoute} replace />
               ) : (
                 <SignUpPage />
               )
             }
           />
-          <Route
-            path="/register"
-            element={<Navigate to="/signup" replace />}
-          />
+          <Route path="/register" element={<Navigate to="/signup" replace />} />
           <Route
             path="/inregistrare"
             element={<Navigate to="/signup" replace />}
@@ -144,7 +163,7 @@ const AppShell: React.FC = () => {
             path="*"
             element={
               <Navigate
-                to={isAuthenticated ? "/facilitati" : "/login"}
+                to={isAuthenticated ? defaultRoute : "/login"}
                 replace
               />
             }

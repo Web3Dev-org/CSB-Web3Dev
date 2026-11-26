@@ -20,6 +20,7 @@ import ro.usv.sport.dto.BookingRequest;
 import ro.usv.sport.dto.BookingStatus;
 import ro.usv.sport.dto.BookingSummary;
 import ro.usv.sport.dto.BookingType;
+import ro.usv.sport.dto.AdminBookingRequest;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -47,7 +48,8 @@ public class BookingService {
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
 
-    private record EquipmentLine(Long equipmentId, String name, int quantity, BigDecimal unitPrice) {}
+    private record EquipmentLine(Long equipmentId, String name, int quantity, BigDecimal unitPrice) {
+    }
 
     @Transactional(readOnly = true)
     public BookingPage listMyBookings(
@@ -88,8 +90,7 @@ public class BookingService {
         Long totalElements = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM v_my_bookings" + where,
                 Long.class,
-                params.toArray()
-        );
+                params.toArray());
         long total = totalElements != null ? totalElements : 0L;
 
         String orderBy = switch (sort != null ? sort : "startAt,desc") {
@@ -104,11 +105,10 @@ public class BookingService {
 
         List<BookingSummary> content = jdbcTemplate.query(
                 "SELECT id, facility_id, facility_name, type, status, start_at, hours_count, " +
-                "total_amount, is_active_booking, can_cancel " +
-                "FROM v_my_bookings" + where + orderBy + " LIMIT ? OFFSET ?",
+                        "total_amount, is_active_booking, can_cancel " +
+                        "FROM v_my_bookings" + where + orderBy + " LIMIT ? OFFSET ?",
                 (rs, rowNum) -> mapBookingSummary(rs),
-                dataParams.toArray()
-        );
+                dataParams.toArray());
 
         int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / pageSize);
 
@@ -129,8 +129,7 @@ public class BookingService {
         if (startZoned.getMinute() != 0 || startZoned.getSecond() != 0 || startZoned.getNano() != 0) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Ora de început trebuie să fie la oră fixă (:00:00)."
-            );
+                    "Ora de început trebuie să fie la oră fixă (:00:00).");
         }
 
         LocalDateTime nowLocal = LocalDateTime.now(BUCHAREST_ZONE);
@@ -140,12 +139,11 @@ public class BookingService {
         // 2. Verificare statut și reducere utilizator
         Map<String, Object> userRow = jdbcTemplate.queryForList(
                 "SELECT u.is_active, us.discount_percent " +
-                "FROM users u JOIN user_statuses us ON us.code = u.status_code " +
-                "WHERE u.id = ?",
-                userId
-        ).stream().findFirst().orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilizator inexistent.")
-        );
+                        "FROM users u JOIN user_statuses us ON us.code = u.status_code " +
+                        "WHERE u.id = ?",
+                userId).stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Utilizator inexistent."));
 
         if (!Boolean.TRUE.equals(userRow.get("is_active"))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Contul este dezactivat.");
@@ -155,10 +153,9 @@ public class BookingService {
         // 3. Verificare facilitate activă și program săptămânal
         Map<String, Object> facilityRow = jdbcTemplate.queryForList(
                 "SELECT price_per_hour, game_multiplier, is_active FROM facilities WHERE id = ?",
-                request.getFacilityId()
-        ).stream().findFirst().orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Facilitatea nu a fost găsită.")
-        );
+                request.getFacilityId()).stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Facilitatea nu a fost găsită."));
 
         if (!Boolean.TRUE.equals(facilityRow.get("is_active"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Facilitatea selectată este inactivă.");
@@ -167,10 +164,9 @@ public class BookingService {
         int weekday = startLocal.getDayOfWeek().getValue(); // 1 = Luni ... 7 = Duminică
         Map<String, Object> hoursRow = jdbcTemplate.queryForList(
                 "SELECT open_hour, close_hour FROM facility_hours WHERE facility_id = ? AND weekday = ?",
-                request.getFacilityId(), weekday
-        ).stream().findFirst().orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.BAD_REQUEST, "Facilitatea este închisă în ziua selectată.")
-        );
+                request.getFacilityId(), weekday).stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Facilitatea este închisă în ziua selectată."));
 
         int openHour = ((Number) hoursRow.get("open_hour")).intValue();
         int closeHour = ((Number) hoursRow.get("close_hour")).intValue();
@@ -182,35 +178,33 @@ public class BookingService {
                 || endHour > closeHour) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Intervalul orar depășește programul facilității (" + openHour + ":00 - " + closeHour + ":00)."
-            );
+                    "Intervalul orar depășește programul facilității (" + openHour + ":00 - "
+                            + closeHour + ":00).");
         }
 
         // 4. Verificare existență versiune termeni și condiții
         Integer termsCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM terms_versions WHERE id = ?",
                 Integer.class,
-                request.getTermsVersionId()
-        );
+                request.getTermsVersionId());
         if (termsCount == null || termsCount == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Versiunea termenilor și condițiilor nu există.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Versiunea termenilor și condițiilor nu există.");
         }
 
         // 5. Verificare disponibilitate sloturi (rezervări + blocări administrative)
         LocalDateTime endLocal = startLocal.plusHours(request.getHoursCount());
         Integer occupiedCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM v_occupied_slots " +
-                "WHERE facility_id = ? AND slot_start >= ? AND slot_start < ?",
+                        "WHERE facility_id = ? AND slot_start >= ? AND slot_start < ?",
                 Integer.class,
                 request.getFacilityId(),
                 Timestamp.valueOf(startLocal),
-                Timestamp.valueOf(endLocal)
-        );
+                Timestamp.valueOf(endLocal));
         if (occupiedCount != null && occupiedCount > 0) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Unul sau mai multe dintre sloturile orare selectate sunt deja ocupate sau blocate."
-            );
+                    "Unul sau mai multe dintre sloturile orare selectate sunt deja ocupate sau blocate.");
         }
 
         // 6. Validare echipamente și calcul sume pe server
@@ -221,37 +215,35 @@ public class BookingService {
             for (BookingEquipmentRequest item : request.getEquipment()) {
                 Map<String, Object> eqRow = jdbcTemplate.queryForList(
                         "SELECT id, name, price, stock, is_active FROM equipment WHERE id = ?",
-                        item.getEquipmentId()
-                ).stream().findFirst().orElseThrow(() ->
-                        new ResponseStatusException(
+                        item.getEquipmentId()).stream().findFirst()
+                        .orElseThrow(() -> new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
-                                "Echipamentul cu ID " + item.getEquipmentId() + " nu a fost găsit."
-                        )
-                );
+                                "Echipamentul cu ID " + item.getEquipmentId()
+                                        + " nu a fost găsit."));
 
                 if (!Boolean.TRUE.equals(eqRow.get("is_active"))) {
                     throw new ResponseStatusException(
                             HttpStatus.CONFLICT,
-                            "Echipamentul '" + eqRow.get("name") + "' nu mai este disponibil."
-                    );
+                            "Echipamentul '" + eqRow.get("name")
+                                    + "' nu mai este disponibil.");
                 }
 
                 Object stockObj = eqRow.get("stock");
                 if (stockObj != null && ((Number) stockObj).intValue() < item.getQuantity()) {
                     throw new ResponseStatusException(
                             HttpStatus.CONFLICT,
-                            "Stoc insuficient pentru echipamentul '" + eqRow.get("name") + "'."
-                    );
+                            "Stoc insuficient pentru echipamentul '" + eqRow.get("name")
+                                    + "'.");
                 }
 
                 BigDecimal eqPrice = new BigDecimal(eqRow.get("price").toString());
-                equipmentAmount = equipmentAmount.add(eqPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
+                equipmentAmount = equipmentAmount
+                        .add(eqPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
                 equipmentLines.add(new EquipmentLine(
                         item.getEquipmentId(),
                         eqRow.get("name").toString(),
                         item.getQuantity(),
-                        eqPrice
-                ));
+                        eqPrice));
             }
         }
 
@@ -281,12 +273,12 @@ public class BookingService {
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
                     "INSERT INTO bookings (" +
-                    "user_id, facility_id, type, status, start_at, hours_count, " +
-                    "unit_price, base_amount, equipment_amount, discount_percent, discount_amount, total_amount, " +
-                    "terms_version_id, terms_accepted_at" +
-                    ") VALUES (?, ?, ?, 'in_asteptare', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    Statement.RETURN_GENERATED_KEYS
-            );
+                            "user_id, facility_id, type, status, start_at, hours_count, " +
+                            "unit_price, base_amount, equipment_amount, discount_percent, discount_amount, total_amount, "
+                            +
+                            "terms_version_id, terms_accepted_at" +
+                            ") VALUES (?, ?, ?, 'in_asteptare', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, userId);
             ps.setLong(2, request.getFacilityId());
             ps.setString(3, request.getType().getValue());
@@ -309,15 +301,13 @@ public class BookingService {
             Timestamp slotTs = Timestamp.valueOf(startLocal.plusHours(i));
             jdbcTemplate.update(
                     "INSERT INTO booking_slots (booking_id, facility_id, slot_start) VALUES (?, ?, ?)",
-                    bookingId, request.getFacilityId(), slotTs
-            );
+                    bookingId, request.getFacilityId(), slotTs);
         }
 
         for (EquipmentLine line : equipmentLines) {
             jdbcTemplate.update(
                     "INSERT INTO booking_equipment (booking_id, equipment_id, quantity, unit_price) VALUES (?, ?, ?, ?)",
-                    bookingId, line.equipmentId(), line.quantity(), line.unitPrice()
-            );
+                    bookingId, line.equipmentId(), line.quantity(), line.unitPrice());
         }
 
         return getMyBookingById(bookingId);
@@ -327,17 +317,28 @@ public class BookingService {
     public BookingDetail getMyBookingById(Long id) {
         Long userId = getCurrentUserId();
 
+        List<Long> owners = jdbcTemplate.queryForList(
+                "SELECT user_id FROM bookings WHERE id = ?",
+                Long.class,
+                id
+        );
+        if (owners.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Rezervarea nu a fost găsită.");
+        }
+        if (!owners.getFirst().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Nu aveți acces la această rezervare.");
+        }
+
+        return getBookingDetailById(id);
+    }
+
+    private BookingDetail getBookingDetailById(Long id) {
         Map<String, Object> row = jdbcTemplate.queryForList(
                 "SELECT * FROM v_my_bookings WHERE id = ?",
                 id
         ).stream().findFirst().orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Rezervarea nu a fost găsită.")
         );
-
-        long ownerId = ((Number) row.get("user_id")).longValue();
-        if (ownerId != userId) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Nu aveți acces la această rezervare.");
-        }
 
         List<BookingEquipmentItem> equipmentList = jdbcTemplate.query(
                 "SELECT be.equipment_id, e.name, be.quantity, be.unit_price " +
@@ -383,18 +384,105 @@ public class BookingService {
         if (!Boolean.TRUE.equals(existing.getCanCancel())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Rezervarea nu mai poate fi anulată (fie nu este activă, fie termenul limită a fost depășit)."
-            );
+                    "Rezervarea nu mai poate fi anulată (fie nu este activă, fie termenul limită a fost depășit).");
         }
 
         Timestamp nowTs = Timestamp.valueOf(LocalDateTime.now(BUCHAREST_ZONE));
-        // Trigger-ul MySQL `trg_release_slots` eliberează automat sloturile din `booking_slots`
+        // Trigger-ul MySQL `trg_release_slots` eliberează automat sloturile din
+        // `booking_slots`
         jdbcTemplate.update(
                 "UPDATE bookings SET status = 'anulata', cancelled_at = ?, cancel_reason = ? WHERE id = ?",
-                nowTs, reason, id
-        );
+                nowTs, reason, id);
 
         return getMyBookingById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminBookingRequest> listAdminBookings(BookingStatus status) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT b.id AS booking_id, u.full_name AS client, f.name AS facility, " +
+                        "b.start_at, b.hours_count, b.total_amount, b.status, " +
+                        "CASE WHEN EXISTS (" +
+                        "    SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status = 'reusita'"
+                        +
+                        ") THEN 'Plătit' ELSE 'Neplătit' END AS payment_state " +
+                        "FROM bookings b " +
+                        "JOIN users u ON u.id = b.user_id " +
+                        "JOIN facilities f ON f.id = b.facility_id ");
+
+        List<Object> params = new ArrayList<>();
+        if (status != null) {
+            sql.append("WHERE b.status = ? ");
+            params.add(status.getValue());
+        }
+
+        sql.append("ORDER BY CASE WHEN b.status = 'in_asteptare' THEN 0 ELSE 1 END, b.start_at ASC, b.id DESC");
+
+        return jdbcTemplate.query(
+                sql.toString(),
+                (rs, rowNum) -> new AdminBookingRequest()
+                        .bookingId(rs.getLong("booking_id"))
+                        .client(rs.getString("client"))
+                        .facility(rs.getString("facility"))
+                        .startAt(toOffsetDateTime(rs.getTimestamp("start_at")))
+                        .hoursCount(rs.getInt("hours_count"))
+                        .totalAmount(rs.getBigDecimal("total_amount"))
+                        .status(BookingStatus.fromValue(rs.getString("status")))
+                        .paymentState(AdminBookingRequest.PaymentStateEnum
+                                .fromValue(rs.getString("payment_state"))),
+                params.toArray());
+    }
+
+    @Transactional
+    public BookingDetail approveBooking(Long id) {
+        Long adminId = getCurrentUserId();
+        String currentStatus = getBookingStatusOrThrow(id);
+
+        if (!"in_asteptare".equals(currentStatus)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Doar rezervările în așteptare pot fi aprobate.");
+        }
+
+        Timestamp nowTs = Timestamp.valueOf(LocalDateTime.now(BUCHAREST_ZONE));
+        jdbcTemplate.update(
+                "UPDATE bookings SET status = 'aprobata', approved_by = ?, approved_at = ? WHERE id = ?",
+                adminId, nowTs, id);
+
+        return getBookingDetailById(id);
+    }
+
+    @Transactional
+    public BookingDetail rejectBooking(Long id, String reason) {
+        String currentStatus = getBookingStatusOrThrow(id);
+
+        if (!"in_asteptare".equals(currentStatus)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Doar rezervările în așteptare pot fi respinse.");
+        }
+
+        Timestamp nowTs = Timestamp.valueOf(LocalDateTime.now(BUCHAREST_ZONE));
+        jdbcTemplate.update(
+                "UPDATE bookings SET status = 'respinsa', cancelled_at = ?, cancel_reason = ? WHERE id = ?",
+                nowTs, reason, id);
+
+        // Siguranță suplimentară pentru eliberarea sloturilor (idempotentă alături de
+        // trigger-ul MySQL)
+        jdbcTemplate.update("DELETE FROM booking_slots WHERE booking_id = ?", id);
+
+        return getBookingDetailById(id);
+    }
+
+    private String getBookingStatusOrThrow(Long id) {
+        List<String> statuses = jdbcTemplate.queryForList(
+                "SELECT status FROM bookings WHERE id = ?",
+                String.class,
+                id);
+        if (statuses.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Rezervarea nu a fost găsită.");
+        }
+        return statuses.getFirst();
     }
 
     private BookingSummary mapBookingSummary(ResultSet rs) throws SQLException {
@@ -413,22 +501,21 @@ public class BookingService {
 
     private OffsetDateTime toOffsetDateTime(Object rawValue) {
         return switch (rawValue) {
-                case null -> null;
-                case LocalDateTime ldt -> ldt.atZone(BUCHAREST_ZONE).toOffsetDateTime();
-                case Timestamp ts -> ts.toLocalDateTime().atZone(BUCHAREST_ZONE).toOffsetDateTime();
-                case OffsetDateTime odt -> odt.atZoneSameInstant(BUCHAREST_ZONE).toOffsetDateTime();
-                default -> LocalDateTime.parse(rawValue.toString().replace(" ", "T"))
-                        .atZone(BUCHAREST_ZONE)
-                        .toOffsetDateTime();
+            case null -> null;
+            case LocalDateTime ldt -> ldt.atZone(BUCHAREST_ZONE).toOffsetDateTime();
+            case Timestamp ts -> ts.toLocalDateTime().atZone(BUCHAREST_ZONE).toOffsetDateTime();
+            case OffsetDateTime odt -> odt.atZoneSameInstant(BUCHAREST_ZONE).toOffsetDateTime();
+            default -> LocalDateTime.parse(rawValue.toString().replace(" ", "T"))
+                    .atZone(BUCHAREST_ZONE)
+                    .toOffsetDateTime();
         };
-        }
+    }
 
     private int getIntSetting(String key, int fallback) {
         List<String> values = jdbcTemplate.queryForList(
                 "SELECT setting_value FROM app_settings WHERE setting_key = ?",
                 String.class,
-                key
-        );
+                key);
         if (values.isEmpty()) {
             return fallback;
         }
@@ -442,6 +529,7 @@ public class BookingService {
         }
         return userRepository.findByEmail(auth.getName())
                 .map(user -> user.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilizator negăsit."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Utilizator negăsit."));
     }
 }
